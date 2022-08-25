@@ -2,7 +2,8 @@
 
 This is a web-based user interface for generating images using the Stable Diffusion repository.
 
-**NOTE**: I'm not putting this here because it's done and perfect, it's early days and I don't want to lose my work. You can file issues if you feel like it, but this is barely a functioning project, so :shrug:
+**NOTE**: This was done quickly to solve a problem, not to win code quality awards. You can file issues if you feel like it, though :shrug:
+**NOTE**: This produces uncensored results, be aware.
 
 (for my own sake: I've barely spent any time trying to understand the whole ML framework and Gradio, and I hacked this together as quickly as I could so that I could put it up before I start my new job)
 
@@ -51,6 +52,7 @@ Then continue from (3) in the quickstart.
 
 Oh so SO much
 * add proper searching through prompts (matches, contains, is like, etc.)
+* add support for img2img
 * wait for the dropdown bug to be fixed so new prompts can be added to the prompt history without restarting the server first
 * refactor out into different classes, get rid of globals, etc.
 * refactor to use offical repo without changes
