@@ -290,20 +290,20 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
     with gr.Tabs():
         # Text to image tab
         with gr.TabItem("Text to Image"):
-            tti_prompt = gr.Textbox(label="Prompt", max_lines=1, value=session["prompt"])
+            tti_prompt = gr.Textbox(label="Prompt        (the sentence to generate the image from)", max_lines=1, value=session["prompt"])
             with gr.Row():
-                tti_seed = gr.Number(label="Seed", value=session["seed"], precision=0)
-                tti_random = gr.Button(value="Randomize")
+                tti_seed = gr.Number(label="Seed        (use this number to regenerate the same image/style in future)", value=session["seed"], precision=0)
+                tti_random = gr.Button(value="Randomize seed")
                 tti_random.click(fn=lambda: gr.update(value=random.randint(-2147483648, 2147483647)), inputs=None, outputs=tti_seed)
-            tti_steps = gr.Slider(label="Steps (how much it tries to refine the output)", minimum=0, maximum=200, value=session["steps"], step=1)
-            tti_cfg_scale = gr.Slider(label="Config scale (how hard it tries to fit the image to the description, it can try TOO hard)", minimum=0, maximum=30, value=session["cfg_scale"], step=0.1)
+            tti_steps = gr.Slider(label="Steps        (how much it tries to refine the output)", minimum=0, maximum=200, value=session["steps"], step=1)
+            tti_cfg_scale = gr.Slider(label="Config scale        (how hard it tries to fit the image to the description, it can try TOO hard)", minimum=0, maximum=30, value=session["cfg_scale"], step=0.1)
             with gr.Row():
                 with gr.Column():
                     with gr.Row():
                         with gr.Column():
-                            tti_width = gr.Number(label="Width", value=session["width"], precision=0)
+                            tti_width = gr.Number(label="Width (multiple of 64)", value=session["width"], precision=0)
                         with gr.Column():
-                            tti_height = gr.Number(label="Height", value=session["height"], precision=0)
+                            tti_height = gr.Number(label="Height (multiple of 64)", value=session["height"], precision=0)
                 with gr.Column():
                     with gr.Row():
                         with gr.Column():
@@ -461,7 +461,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 return [gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(value='Done')]
                 
             set_count = gr.Dropdown(label="Images to generate", choices=[1,2,3], value=3)
-            set_downsampling = gr.Slider(label="Downsampling factor (increasing this reduces quality, but lowers VRAM usage)", minimum=1, maximum=20, value=8, step=1)
+            set_downsampling = gr.Slider(label="Downsampling factor        (increasing this reduces quality, but lowers VRAM usage. if you're struggling, try setting this to 9)", minimum=1, maximum=20, value=8, step=1)
             with gr.Row():
                 with gr.Column():
                     set_apply = gr.Button(value='Apply', variant='primary')
