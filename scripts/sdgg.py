@@ -16,11 +16,21 @@ DEBUG = False
 
 # hack hack la la hack
 arg_parser = argparse.ArgumentParser(description='Sable Diffusion Gradio GUI')
-arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='how many images to generate at once, try 1 if you''re having VRAM issues', default=3)
+arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='how many images to generate, try 1 (or -s) if you''re having VRAM issues', default=3)
+arg_parser.add_argument('-s', '--serial', dest='SERIAL', type=bool, help='generate 1-by-1, use for lower VRAM', default=False)
 arg_parser.add_argument('-df', '--downsampling_factor', dest='downsampling_factor', type=int, help='BUGGY! for less VRAM usage, lower quality, faster generation, try 9 as a value', default=8)
 args = arg_parser.parse_args()
 IMAGE_COUNT = args.IMAGE_COUNT # MAX 3!
+if IMAGE_COUNT>3:
+    IMAGE_COUNT = 3
 DOWNSAMPLING = args.downsampling_factor
+SERIAL = args.SERIAL
+ITERATIONS = 1
+SHOW_COUNT = IMAGE_COUNT
+
+if SERIAL and IMAGE_COUNT>1:
+    ITERATIONS = IMAGE_COUNT
+    IMAGE_COUNT = 1
 
 def change_database(db_filename):
     global database
@@ -112,7 +122,7 @@ def generate(prompt, seed, steps, width, height, cfg_scale):
         if settings_existed and prompt_existed:
             cursor = database.cursor()
             cursor.execute("SELECT filename FROM image WHERE prompt_id=? AND settings_id=? AND seed=?", [prompt_id, settings_id, seed])
-            rows = cursor.fetchmany(IMAGE_COUNT)
+            rows = cursor.fetchmany(SHOW_COUNT)
             if rows:
                 print(f"Prompt already run, returning existing images if possible\n")
                 image_existed = True
@@ -320,11 +330,11 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                     tti_output1 = gr.Image(label="Generated image")
                     tti_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
                 with gr.Column():
-                    tti_output2 = gr.Image(label="Generated image", visible=IMAGE_COUNT>1)
-                    tti_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=IMAGE_COUNT>1)
+                    tti_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1)
+                    tti_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>1)
                 with gr.Column():
-                    tti_output3 = gr.Image(label="Generated image", visible=IMAGE_COUNT>2)
-                    tti_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=IMAGE_COUNT>2)
+                    tti_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2)
+                    tti_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>2)
             message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
             generate_btn.click(fn=generate, inputs=[tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale], outputs=[tti_output1, tti_output2, tti_output3, tti_seed1, tti_seed2, tti_seed3, message])
             
@@ -439,7 +449,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
         # Settings tab
         with gr.TabItem("Settings"):
             # TODO: refactor this _hard_
-            def apply_settings(count_, downsampling_):
+            def apply_settings(count_, downsampling_, serial_):
                 global IMAGE_COUNT
                 global outdir
                 global width
@@ -447,11 +457,19 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 global weights
                 global config
                 global t2i
+                global SERIAL
+                global ITERATIONS
+                SERIAL = (serial_ == "on")
                 IMAGE_COUNT = count_
                 DOWNSAMPLING = downsampling_
+                if SERIAL and IMAGE_COUNT>1:
+                    ITERATIONS = IMAGE_COUNT
+                    IMAGE_COUNT = 1
+                
                 t2i = T2I(width=width,
                           height=height,
                           batch_size=IMAGE_COUNT,
+                          iterations=ITERATIONS,
                           outdir=outdir,
                           sampler_name="klms", # or plms?
                           weights=weights,
@@ -463,14 +481,16 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 t2i.load_model()
                 return [gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(value='Done')]
                 
+            gr.Label(value="NOTE: these are not saved right now, check out the parameters of this Python script using --help for a more permanent solution")
             set_count = gr.Dropdown(label="Images to generate  (try generating only 1 if you're struggling with memory issues and want to retain quality)", choices=[1,2,3], value=3)
+            set_serial = gr.Dropdown(label="Serial generation  (try turning this on if you're having memory issues)", choices=["off", "on"], value="off")
             set_downsampling = gr.Slider(label="Downsampling factor        (BUGGY! increasing this reduces quality, but lowers VRAM usage. if you're struggling, try setting this to 9)", minimum=1, maximum=20, value=8, step=1)
             with gr.Row():
                 with gr.Column():
                     set_apply = gr.Button(value='Apply', variant='primary')
                 with gr.Column():
                     set_status = gr.Label(label='Status')
-            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
+            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling, set_serial], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
    
    
 sys.path.append('.')
@@ -483,6 +503,7 @@ if not DEBUG:
     t2i = T2I(width=width,
               height=height,
               batch_size=IMAGE_COUNT,
+              iterations=ITERATIONS,
               outdir=outdir,
               sampler_name="klms", # or plms?
               weights=weights,
