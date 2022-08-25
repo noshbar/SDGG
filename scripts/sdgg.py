@@ -17,14 +17,14 @@ DEBUG = False
 # hack hack la la hack
 arg_parser = argparse.ArgumentParser(description='Sable Diffusion Gradio GUI')
 arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='how many images to generate, try 1 (or -s) if you''re having VRAM issues', default=3)
-arg_parser.add_argument('-s', '--serial', dest='SERIAL', type=bool, help='generate 1-by-1, use for lower VRAM', default=True)
+arg_parser.add_argument('-p', '--parallel', dest='PARALLEL', type=bool, help='generate the entire batch at once, slightly quicker, uses more VRAM', default=False)
 arg_parser.add_argument('-df', '--downsampling_factor', dest='downsampling_factor', type=int, help='BUGGY! for less VRAM usage, lower quality, faster generation, try 9 as a value', default=8)
 args = arg_parser.parse_args()
 IMAGE_COUNT = args.IMAGE_COUNT # MAX 3!
 if IMAGE_COUNT>3:
     IMAGE_COUNT = 3
 DOWNSAMPLING = args.downsampling_factor
-SERIAL = args.SERIAL
+SERIAL = not args.PARALLEL
 ITERATIONS = 1
 SHOW_COUNT = IMAGE_COUNT
 
