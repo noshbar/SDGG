@@ -8,6 +8,7 @@ import shlex
 import atexit
 import os
 import sys
+import random
 from PIL import Image,PngImagePlugin
 from numpy import asarray
 
@@ -290,7 +291,10 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
         # Text to image tab
         with gr.TabItem("Text to Image"):
             tti_prompt = gr.Textbox(label="Prompt", max_lines=1, value=session["prompt"])
-            tti_seed = gr.Number(label="Seed", value=session["seed"], precision=0)
+            with gr.Row():
+                tti_seed = gr.Number(label="Seed", value=session["seed"], precision=0)
+                tti_random = gr.Button(value="Randomize")
+                tti_random.click(fn=lambda: gr.update(value=random.randint(-2147483648, 2147483647)), inputs=None, outputs=tti_seed)
             tti_steps = gr.Slider(label="Steps (how much it tries to refine the output)", minimum=0, maximum=200, value=session["steps"], step=1)
             tti_cfg_scale = gr.Slider(label="Config scale (how hard it tries to fit the image to the description, it can try TOO hard)", minimum=0, maximum=30, value=session["cfg_scale"], step=0.1)
             with gr.Row():
@@ -375,12 +379,12 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 count_ = len(history_)
                 for index_ in range(25):
                     if index_ < count_:
-                        result_.append(gr.update(value=history_[index_]['filename'], label=history_[index_]['seed']))
+                        result_.append(gr.update(visible=True, value=history_[index_]['filename'], label=history_[index_]['seed']))
                         # y'know, I tried everything to try get the filename from here into use_image_history() below, but making a variable
                         # during the initial image grid creation caused it to not be updated, and passing images as an input gets you a numpy array, sooo...
                         result_.append(gr.update(visible=True, value="Reuse settings ☝️ ["+str(history_[index_]['id'])+"]")) # for the reuse settings button
                     else:
-                        result_.append(gr.update(value=None))
+                        result_.append(gr.update(value=None, visible=False))
                         result_.append(gr.update(visible=False)) # for the reuse settings button
                 if more_:
                     result_.append(gr.update(value='More')) # 2 of them 'cos we gots 2 buttons
