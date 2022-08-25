@@ -207,15 +207,28 @@ def get_images_next(p, start):
         gr.Button.update(value=button_text), \
         gr.update(value=image1, visible=True), gr.update(value=image2, visible=True), gr.update(value=image3, visible=True), \
         gr.update(value=seed1, visible=True), gr.update(value=seed2, visible=True), gr.update(value=seed3, visible=True)
-    
-def get_images_history(start, amount):
+
+last_filter_mode='none'
+last_filter_text=''        
+def get_images_history(start, amount, filter_mode, filter_text):
     global database
-    result = []
-    
+    global last_filter_mode
+    global last_filter_text
+    result = []    
+   
+    # I give up being smart at this point, globals it is. Reset to the start of search results if parameters have changed
+    if (not last_filter_mode == filter_mode) or (not last_filter_text == filter_text):
+        last_filter_mode = filter_mode
+        last_filter_text = filter_text
+        start = 0
+   
     more = False
     try:
         cursor = database.cursor()
-        cursor.execute("SELECT filename, seed, id FROM image WHERE id>? ORDER BY id LIMIT ?", [start, amount+1])
+        if (not filter_mode) or (filter_mode == 'none') or (filter_text.strip() == ""):
+            cursor.execute("SELECT filename, seed, id FROM image WHERE id>? ORDER BY id LIMIT ?", [start, amount+1])
+        else:   
+            cursor.execute('SELECT filename, seed, id FROM image WHERE id>? AND prompt_id IN (SELECT rowid FROM prompt WHERE description LIKE ''?'') ORDER BY id LIMIT ?', [start, '%'+filter_text+'%', amount+1])
         images = cursor.fetchall()
         count = len(images)
         more = count > amount
@@ -334,9 +347,9 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
         # Image history tab
         with gr.TabItem("Image history"):
             # callback functions
-            def update_image_history(start_):
+            def update_image_history(start_, filter_mode_, filter_text_):
                 result_ = []
-                history_, next_start_, more_ = get_images_history(start_, 25)
+                history_, next_start_, more_ = get_images_history(start_, 25, filter_mode_, filter_text_)
                 result_.append(next_start_)
                 if more_:
                     result_.append(gr.update(value='More')) # 2 of them 'cos we gots 2 buttons
@@ -377,7 +390,13 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 return result_
                 
             # UI controls    
-            ima_start = gr.Variable(value=0)    
+            ima_start = gr.Variable(value=0)
+            with gr.Row():
+                with gr.Column():
+                    ima_filter_mode = gr.Dropdown(label="Filter mode", choices=["none", "contains"], value="none")
+                with gr.Column():
+                    ima_filter_text = gr.Textbox(label="Filter text", visible=False)
+                ima_filter_mode.change(fn=lambda mode: gr.update(visible=not mode=='none'), inputs=ima_filter_mode, outputs=ima_filter_text)
             ima_fetch1 = gr.Button(value='Fetch', variant='primary')
             ima_outputs = [ima_start, ima_fetch1]
             for y in range(5):
@@ -391,8 +410,8 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                             ima_outputs.append(ima_butt)
             ima_fetch2 = gr.Button(value='Fetch', variant='primary')
             ima_outputs.append(ima_fetch2)
-            ima_fetch1.click(fn=update_image_history, inputs=ima_start, outputs=ima_outputs)
-            ima_fetch2.click(fn=update_image_history, inputs=ima_start, outputs=ima_outputs)
+            ima_fetch1.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)
+            ima_fetch2.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)
    
 sys.path.append('.')
 from ldm.simplet2i import T2I
