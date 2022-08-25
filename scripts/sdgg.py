@@ -13,6 +13,12 @@ from numpy import asarray
 
 DEBUG = False
 
+# hack hack la la hack
+arg_parser = argparse.ArgumentParser(description='Sable Diffusion Gradio GUI')
+arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='how many images to generate at once', default=3)
+args = arg_parser.parse_args()
+IMAGE_COUNT = args.IMAGE_COUNT # MAX 3!
+
 def change_database(db_filename):
     global database
     if (database):
@@ -57,6 +63,9 @@ def generate(prompt, seed, steps, width, height, cfg_scale):
     global outdir
     global t2i
 
+    images = [None, None, None]
+    seeds = [0, 0, 0]
+   
     if prompt.strip() == "":
         return [None, None, None, 0, 0, 0, "Please enter a valid prompt first"]
 
@@ -96,26 +105,30 @@ def generate(prompt, seed, steps, width, height, cfg_scale):
             settings_existed = True
 
         # retrieve existing images, or generate new ones here
-        results = []
+        image_existed = False
         if settings_existed and prompt_existed:
             cursor = database.cursor()
             cursor.execute("SELECT filename FROM image WHERE prompt_id=? AND settings_id=? AND seed=?", [prompt_id, settings_id, seed])
-            rows = cursor.fetchmany(3)
+            rows = cursor.fetchmany(IMAGE_COUNT)
             if rows:
                 print(f"Prompt already run, returning existing images if possible\n")
-                for row in rows:
-                    results.append([row[0], seed])
+                image_existed = True
+                for index, row in enumerate(rows):
+                    images[index] = asarray(Image.open(row[0]))
+                    seeds[index] = seed
         # if we couldn't get 3 images, just regenerate
-        if len(results) < 3:
+        if not image_existed:
             results = t2i.txt2img(prompt=prompt, outdir=outdir, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale)
-            for result in results:
+            for index, result in enumerate(results):
+                images[index] = asarray(Image.open(result[0]))
+                seeds[index] = result[1]
                 cursor = database.cursor()
                 cursor.execute("INSERT INTO image(filename, prompt_id, settings_id, seed) values(?, ?, ?, ?)", [result[0], prompt_id, settings_id, result[1]])
                 database.commit()
     except lite.Error as e:
         message = 'Database exception: ' + e.args[0]
                 
-    return [asarray(Image.open(results[0][0])), asarray(Image.open(results[1][0])), asarray(Image.open(results[2][0])), results[0][1], results[1][1], results[2][1], message]
+    return [images[0], images[1], images[2], seeds[0], seeds[1], seeds[2], message]
 
 def get_prompts():
     global database
@@ -190,8 +203,12 @@ def get_images_next(p, start):
         if count > 0:
             image1 = asarray(Image.open(images[0][0]))
             seed1 = images[0][1]
+            start = images[0][2]                        
+        if count > 1:
             image2 = asarray(Image.open(images[1][0]))
             seed2 = images[1][1]
+            start = images[1][2]                        
+        if count > 2:
             image3 = asarray(Image.open(images[2][0]))
             seed3 = images[2][1]
             start = images[2][2]                        
@@ -297,11 +314,11 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                     tti_output1 = gr.Image(label="Generated image")
                     tti_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
                 with gr.Column():
-                    tti_output2 = gr.Image(label="Generated image")
-                    tti_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                    tti_output2 = gr.Image(label="Generated image", visible=IMAGE_COUNT>1)
+                    tti_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=IMAGE_COUNT>1)
                 with gr.Column():
-                    tti_output3 = gr.Image(label="Generated image")
-                    tti_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                    tti_output3 = gr.Image(label="Generated image", visible=IMAGE_COUNT>2)
+                    tti_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=IMAGE_COUNT>2)
             message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
             generate_btn.click(fn=generate, inputs=[tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale], outputs=[tti_output1, tti_output2, tti_output3, tti_seed1, tti_seed2, tti_seed3, message])
             
@@ -413,6 +430,40 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
             ima_fetch1.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)
             ima_fetch2.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)
    
+        # Settings tab
+        with gr.TabItem("Settings"):
+            # TODO: refactor this _hard_
+            def apply_settings(count_):
+                global IMAGE_COUNT
+                global outdir
+                global width
+                global height
+                global weights
+                global config
+                global t2i
+                IMAGE_COUNT = count_
+                t2i = T2I(width=width,
+                          height=height,
+                          batch_size=IMAGE_COUNT,
+                          outdir=outdir,
+                          sampler_name="klms", # or plms?
+                          weights=weights,
+                          full_precision=True,
+                          config=config,
+                )
+                # reload the model
+                t2i.load_model()
+                return [gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(value='Done')]
+                
+            set_count = gr.Dropdown(label="Images to generate", choices=[1,2,3], value=3)
+            with gr.Row():
+                with gr.Column():
+                    set_apply = gr.Button(value='Apply', variant='primary')
+                with gr.Column():
+                    set_status = gr.Label(label='Status')
+            set_apply.click(fn=apply_settings, inputs=set_count, outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
+   
+   
 sys.path.append('.')
 from ldm.simplet2i import T2I
 
@@ -422,7 +473,7 @@ from ldm.simplet2i import T2I
 if not DEBUG:
     t2i = T2I(width=width,
               height=height,
-              batch_size=3,
+              batch_size=IMAGE_COUNT,
               outdir=outdir,
               sampler_name="klms", # or plms?
               weights=weights,

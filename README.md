@@ -13,7 +13,7 @@ This is a web-based user interface for generating images using the Stable Diffus
 1. Clone [this fork](https://github.com/lstein/stable-diffusion) of the Stable Diffusion repo and create the environment  (you can use the official one, see longer start below)
 2. Clone this repo and copy the files to the same folder you just cloned the above to
 3. Run `pip install gradio`
-4. Run `python scripts\sdgg.py`
+4. Run `python scripts\sdgg.py` (optionally pass `-bs 1` to only generate 1/2/3 image(s) at a time if you're having memory issues)
 5. Wait for it to load and show a message like `Running on local URL:  http://127.0.0.1:7860/`
 6. Browse to that address in your browser and start generating!
 
