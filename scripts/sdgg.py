@@ -449,7 +449,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
         # Settings tab
         with gr.TabItem("Settings"):
             # TODO: refactor this _hard_
-            def apply_settings(count_, downsampling_, serial_):
+            def apply_settings(count_, downsampling_):
                 global IMAGE_COUNT
                 global outdir
                 global width
@@ -459,12 +459,13 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 global t2i
                 global SERIAL
                 global ITERATIONS
-                SERIAL = (serial_ == "on")
+                global SHOW_COUNT
                 IMAGE_COUNT = count_
                 DOWNSAMPLING = downsampling_
-                if SERIAL and IMAGE_COUNT>1:
+                if SERIAL:
                     ITERATIONS = IMAGE_COUNT
                     IMAGE_COUNT = 1
+                SHOW_COUNT = IMAGE_COUNT
                 
                 t2i = T2I(width=width,
                           height=height,
@@ -482,15 +483,14 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 return [gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(value='Done')]
                 
             gr.Label(value="NOTE: these are not saved right now, check out the parameters of this Python script using --help for a more permanent solution")
-            set_count = gr.Dropdown(label="Images to generate  (try generating only 1 if you're struggling with memory issues and want to retain quality)", choices=[1,2,3], value=3)
-            set_serial = gr.Dropdown(label="Serial generation  (try turning this on if you're having memory issues)", choices=["off", "on"], value="off")
+            set_count = gr.Dropdown(label="Images to generate  (When parallel enabled with -p, try generating only 1 if you're struggling with memory issues and want to retain quality)", choices=[1,2,3], value=3)
             set_downsampling = gr.Slider(label="Downsampling factor        (BUGGY! increasing this reduces quality, but lowers VRAM usage. if you're struggling, try setting this to 9)", minimum=1, maximum=20, value=8, step=1)
             with gr.Row():
                 with gr.Column():
                     set_apply = gr.Button(value='Apply', variant='primary')
                 with gr.Column():
                     set_status = gr.Label(label='Status')
-            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling, set_serial], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
+            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
    
    
 sys.path.append('.')
