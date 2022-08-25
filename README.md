@@ -2,8 +2,9 @@
 
 This is a web-based user interface for generating images using the Stable Diffusion repository.
 
-**NOTE**: This was done quickly to solve a problem, not to win code quality awards. You can file issues if you feel like it, though :shrug:
-**NOTE**: This produces uncensored results, be aware.
+**NOTE**:
+* This was done quickly to solve a problem, not to win code quality awards. You can file issues if you feel like it, though :shrug:
+* This produces uncensored results, be aware.
 
 (for my own sake: I've barely spent any time trying to understand the whole ML framework and Gradio, and I hacked this together as quickly as I could so that I could put it up before I start my new job)
 
