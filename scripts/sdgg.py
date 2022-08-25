@@ -16,9 +16,11 @@ DEBUG = False
 
 # hack hack la la hack
 arg_parser = argparse.ArgumentParser(description='Sable Diffusion Gradio GUI')
-arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='how many images to generate at once', default=3)
+arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='how many images to generate at once, try 1 if you''re having VRAM issues', default=3)
+arg_parser.add_argument('-df', '--downsampling_factor', dest='downsampling_factor', type=int, help='BUGGY! for less VRAM usage, lower quality, faster generation, try 9 as a value', default=8)
 args = arg_parser.parse_args()
 IMAGE_COUNT = args.IMAGE_COUNT # MAX 3!
+DOWNSAMPLING = args.downsampling_factor
 
 def change_database(db_filename):
     global database
@@ -294,7 +296,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
             with gr.Row():
                 tti_seed = gr.Number(label="Seed        (use this number to regenerate the same image/style in future)", value=session["seed"], precision=0)
                 tti_random = gr.Button(value="Randomize seed")
-                tti_random.click(fn=lambda: gr.update(value=random.randint(-2147483648, 2147483647)), inputs=None, outputs=tti_seed)
+                tti_random.click(fn=lambda: gr.update(value=random.randint(0, 4294967295)), inputs=None, outputs=tti_seed)
             tti_steps = gr.Slider(label="Steps        (how much it tries to refine the output)", minimum=0, maximum=200, value=session["steps"], step=1)
             tti_cfg_scale = gr.Slider(label="Config scale        (how hard it tries to fit the image to the description, it can try TOO hard)", minimum=0, maximum=30, value=session["cfg_scale"], step=0.1)
             with gr.Row():
@@ -446,6 +448,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 global config
                 global t2i
                 IMAGE_COUNT = count_
+                DOWNSAMPLING = downsampling_
                 t2i = T2I(width=width,
                           height=height,
                           batch_size=IMAGE_COUNT,
@@ -460,8 +463,8 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 t2i.load_model()
                 return [gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(value='Done')]
                 
-            set_count = gr.Dropdown(label="Images to generate", choices=[1,2,3], value=3)
-            set_downsampling = gr.Slider(label="Downsampling factor        (increasing this reduces quality, but lowers VRAM usage. if you're struggling, try setting this to 9)", minimum=1, maximum=20, value=8, step=1)
+            set_count = gr.Dropdown(label="Images to generate  (try generating only 1 if you're struggling with memory issues and want to retain quality)", choices=[1,2,3], value=3)
+            set_downsampling = gr.Slider(label="Downsampling factor        (BUGGY! increasing this reduces quality, but lowers VRAM usage. if you're struggling, try setting this to 9)", minimum=1, maximum=20, value=8, step=1)
             with gr.Row():
                 with gr.Column():
                     set_apply = gr.Button(value='Apply', variant='primary')
@@ -485,6 +488,7 @@ if not DEBUG:
               weights=weights,
               full_precision=True,
               config=config,
+              downsampling_factor=DOWNSAMPLING,
     )
     # preload the model
     t2i.load_model()
