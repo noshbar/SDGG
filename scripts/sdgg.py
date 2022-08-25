@@ -19,7 +19,9 @@ arg_parser = argparse.ArgumentParser(description='Sable Diffusion Gradio GUI')
 arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='how many images to generate, try 1 (or -s) if you''re having VRAM issues', default=3)
 arg_parser.add_argument('-p', '--parallel', dest='PARALLEL', type=bool, help='generate the entire batch at once, slightly quicker, uses more VRAM', default=False)
 arg_parser.add_argument('-df', '--downsampling_factor', dest='downsampling_factor', type=int, help='BUGGY! for less VRAM usage, lower quality, faster generation, try 9 as a value', default=8)
+arg_parser.add_argument('-s', '--sampler', dest='sampler', type=str, help='Which sampler to use (klms/plms)', default='klms')
 args = arg_parser.parse_args()
+SAMPLER = args.sampler
 IMAGE_COUNT = args.IMAGE_COUNT # MAX 3!
 if IMAGE_COUNT>3:
     IMAGE_COUNT = 3
@@ -449,7 +451,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
         # Settings tab
         with gr.TabItem("Settings"):
             # TODO: refactor this _hard_
-            def apply_settings(count_, downsampling_):
+            def apply_settings(count_, downsampling_, sampler_):
                 global IMAGE_COUNT
                 global outdir
                 global width
@@ -472,7 +474,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                           batch_size=IMAGE_COUNT,
                           iterations=ITERATIONS,
                           outdir=outdir,
-                          sampler_name="klms", # or plms?
+                          sampler_name=sampler_,
                           weights=weights,
                           full_precision=True,
                           config=config,
@@ -485,12 +487,13 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
             gr.Label(value="NOTE: these are not saved right now, check out the parameters of this Python script using --help for a more permanent solution")
             set_count = gr.Dropdown(label="Images to generate  (When parallel enabled with -p, try generating only 1 if you're struggling with memory issues and want to retain quality)", choices=[1,2,3], value=3)
             set_downsampling = gr.Slider(label="Downsampling factor        (BUGGY! increasing this reduces quality, but lowers VRAM usage. if you're struggling, try setting this to 9)", minimum=1, maximum=20, value=8, step=1)
+            set_sampler = gr.Dropdown(label="Sampler", choices=['klms', 'plms'], value='klms')
             with gr.Row():
                 with gr.Column():
                     set_apply = gr.Button(value='Apply', variant='primary')
                 with gr.Column():
                     set_status = gr.Label(label='Status')
-            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
+            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling, set_sampler], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
    
    
 sys.path.append('.')
@@ -498,14 +501,13 @@ from ldm.simplet2i import T2I
 
 # TODO:
 # * make this unload after e.g., 5 minutes of inactivity, then reload when used again
-# * make a settings tab that recreates this, so you can change the batch size if memory is low
 if not DEBUG:
     t2i = T2I(width=width,
               height=height,
               batch_size=IMAGE_COUNT,
               iterations=ITERATIONS,
               outdir=outdir,
-              sampler_name="klms", # or plms?
+              sampler_name=SAMPLER,
               weights=weights,
               full_precision=True,
               config=config,
