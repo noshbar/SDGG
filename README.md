@@ -1,7 +1,9 @@
 # SDGG - Stable Diffusion Gradio GUI
 
 This is a web-based user interface for generating images using the Stable Diffusion repository.
+
 **NOTE**: I'm not putting this here because it's done and perfect, it's early days and I don't want to lose my work. You can file issues if you feel like it, but this is barely a functioning project, so :shrug:
+
 (for my own sake: I've barely spent any time trying to understand the whole ML framework and Gradio, and I hacked this together as quickly as I could so that I could put it up before I start my new job)
 
 ![GUI Preview](preview.jpg)
