@@ -326,45 +326,6 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
             message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
             generate_btn.click(fn=generate, inputs=[tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale], outputs=[tti_output1, tti_output2, tti_output3, tti_seed1, tti_seed2, tti_seed3, message])
             
-        # Prompt History tab    
-        with gr.TabItem("Prompt history"):
-            with gr.Row():
-                prompt_choice = gr.Dropdown(label="Prompts", choices=get_prompts())
-                # doesn't work for some reason, I really think dropdowns are broken at the moment
-                #refresh_btn = gr.Button(value="Refresh")
-                #refresh_btn.click(fn=get_prompts, inputs=None, outputs=prompt_choice)
-            with gr.Row():
-                clipboard_btn = gr.Button(value="Copy to clipboard")
-                clipboard_btn.click(fn=None, inputs=[prompt_choice], outputs=None, _js="(p) => navigator.clipboard.writeText(p)")
-                use_btn = gr.Button(value="Use")
-                use_btn.click(fn=lambda p: gr.update(value=p[0]), inputs=prompt_choice, outputs=tti_prompt)
-            with gr.Row():
-                with gr.Column():
-                    saved_output1 = gr.Image(label="Generated image", visible=False)
-                    saved_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=False)
-                with gr.Column():
-                    saved_output2 = gr.Image(label="Generated image", visible=False)
-                    saved_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=False)
-                with gr.Column():
-                    saved_output3 = gr.Image(label="Generated image", visible=False)
-                    saved_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=False)
-
-            window_start = gr.Variable(value=0)    
-            next_btn = gr.Button(value="View images", visible=True)
-            next_btn.click(fn=get_images_next, inputs=[prompt_choice, window_start], outputs=[window_start, next_btn, saved_output1, saved_output2, saved_output3, saved_seed1, saved_seed2, saved_seed3])
-
-            # I _think_ there's a Gradio bug with dropdowns being infinitely refreshed upon change. There's a similar bug already filed, so wait and see.
-            # For just rely on a button to make things happen, ugh
-            #def prompt_change(p):
-            #    global last_prompt
-            #    if last_prompt == p[0]:
-            #        print(f"{last_prompt} == {p[0]}\n")
-            #    last_prompt = p[0]
-            #    print("updating\n")
-            #    return [gr.update(value=0), gr.update(visible=True, value=p[0])]
-            #prompt_choice.change(fn=prompt_change, inputs=[prompt_choice], outputs=[window_start, prompt_text])
-            #prompt_text.change(fn=get_images_next, inputs=[prompt_choice, window_start], outputs=[window_start, next_btn, saved_output1, saved_output2, saved_output3, saved_seed1, saved_seed2, saved_seed3])
-
         # Image history tab
         with gr.TabItem("Image history"):
             # callback functions
@@ -434,10 +395,49 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
             ima_fetch1.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)
             ima_fetch2.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)
    
+        # Prompt History tab    
+        with gr.TabItem("Prompt history"):
+            with gr.Row():
+                prompt_choice = gr.Dropdown(label="Prompts", choices=get_prompts())
+                # doesn't work for some reason, I really think dropdowns are broken at the moment
+                #refresh_btn = gr.Button(value="Refresh")
+                #refresh_btn.click(fn=get_prompts, inputs=None, outputs=prompt_choice)
+            with gr.Row():
+                clipboard_btn = gr.Button(value="Copy to clipboard")
+                clipboard_btn.click(fn=None, inputs=[prompt_choice], outputs=None, _js="(p) => navigator.clipboard.writeText(p)")
+                use_btn = gr.Button(value="Use")
+                use_btn.click(fn=lambda p: gr.update(value=p[0]), inputs=prompt_choice, outputs=tti_prompt)
+            with gr.Row():
+                with gr.Column():
+                    saved_output1 = gr.Image(label="Generated image", visible=False)
+                    saved_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=False)
+                with gr.Column():
+                    saved_output2 = gr.Image(label="Generated image", visible=False)
+                    saved_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=False)
+                with gr.Column():
+                    saved_output3 = gr.Image(label="Generated image", visible=False)
+                    saved_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=False)
+
+            window_start = gr.Variable(value=0)    
+            next_btn = gr.Button(value="View images", visible=True)
+            next_btn.click(fn=get_images_next, inputs=[prompt_choice, window_start], outputs=[window_start, next_btn, saved_output1, saved_output2, saved_output3, saved_seed1, saved_seed2, saved_seed3])
+
+            # I _think_ there's a Gradio bug with dropdowns being infinitely refreshed upon change. There's a similar bug already filed, so wait and see.
+            # For just rely on a button to make things happen, ugh
+            #def prompt_change(p):
+            #    global last_prompt
+            #    if last_prompt == p[0]:
+            #        print(f"{last_prompt} == {p[0]}\n")
+            #    last_prompt = p[0]
+            #    print("updating\n")
+            #    return [gr.update(value=0), gr.update(visible=True, value=p[0])]
+            #prompt_choice.change(fn=prompt_change, inputs=[prompt_choice], outputs=[window_start, prompt_text])
+            #prompt_text.change(fn=get_images_next, inputs=[prompt_choice, window_start], outputs=[window_start, next_btn, saved_output1, saved_output2, saved_output3, saved_seed1, saved_seed2, saved_seed3])
+   
         # Settings tab
         with gr.TabItem("Settings"):
             # TODO: refactor this _hard_
-            def apply_settings(count_):
+            def apply_settings(count_, downsampling_):
                 global IMAGE_COUNT
                 global outdir
                 global width
@@ -454,18 +454,20 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                           weights=weights,
                           full_precision=True,
                           config=config,
+                          downsampling_factor=downsampling_,
                 )
                 # reload the model
                 t2i.load_model()
                 return [gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(value='Done')]
                 
             set_count = gr.Dropdown(label="Images to generate", choices=[1,2,3], value=3)
+            set_downsampling = gr.Slider(label="Downsampling factor (increasing this reduces quality, but lowers VRAM usage)", minimum=1, maximum=20, value=8, step=1)
             with gr.Row():
                 with gr.Column():
                     set_apply = gr.Button(value='Apply', variant='primary')
                 with gr.Column():
                     set_status = gr.Label(label='Status')
-            set_apply.click(fn=apply_settings, inputs=set_count, outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
+            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
    
    
 sys.path.append('.')
