@@ -13,7 +13,7 @@ import random
 from PIL import Image,PngImagePlugin
 from numpy import asarray
 sys.path.append('.')
-from ldm.simplet2i import T2I
+from ldm_old.simplet2i import T2I
 
 DEBUG = False
 

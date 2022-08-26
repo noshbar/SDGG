@@ -12,29 +12,28 @@ This is a web-based user interface for generating images using the Stable Diffus
 
 ### Quickstart
 
-1. Clone [this fork](https://github.com/lstein/stable-diffusion) of the Stable Diffusion repo and create the environment  (you can use the official one, see longer start below)
+Setup:
+1. Clone [the official Stable Diffusion repo](https://github.com/CompVis/stable-diffusion) and create and activate the environment as instructed in their docs
 2. Clone this repo and copy the files to the same folder you just cloned the above to
 3. Run `pip install gradio`
-4. Run `python scripts\sdgg.py`
+4. Run `pip install -e git+https://github.com/lstein/k-diffusion.git@master#egg=k-diffusion`
+
+Running:
+1. Run `python scripts\sdgg.py`
     * optionally pass `-p true` to generate images in parallel (slight time saving)
         * AND optionally pass `-bs 1` to only generate 1/2/3 image(s) at the same time, if you're having memory issues with parallel
-5. Wait for it to load and show a message like `Running on local URL:  http://127.0.0.1:7860/`
-6. Browse to that address in your browser and start generating!
+2. Wait for it to load and show a message like `Running on local URL:  http://127.0.0.1:7860/`
+3. Browse to that address in your browser and start generating!
 
-### Longstart (using the offical repo)
 
-I initially cloned the forked repo because it had `dream.py` in it, an interactive console application that I thought was neat.
-However, if that fork ever stagnates, you can use the [official repo](https://github.com/CompVis/stable-diffusion), but copy two files from the fork to the official:
-```
-ldm/models/diffusion/ksampler.py
-ldm/simplet2i.py
-```
-and you'll need one extra `pip` installation:
-```
-pip install -e git+https://github.com/lstein/k-diffusion.git@master#egg=k-diffusion
-```
+### Side note
 
-Then continue from (3) in the quickstart.
+I initially cloned [this fork](https://github.com/lstein/stable-diffusion) repo because it had `dream.py` in it, an interactive console application that I thought was neat.  
+However, it has progressed quickly itself, too, meaning updating that fork breaks this repo.  
+
+It now has a bunch of nice features, like being able to post-process faces to add more detail, and even has a web interface of its own.
+
+So only `sdgg.py` was done by me, I got the other scripts from that fork. It was only a stopgap anyway though, and I'd like to do away with any dependencies other than the official Stable Diffusion repo... eventually.
 
 ### Features
 
