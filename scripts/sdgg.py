@@ -337,6 +337,7 @@ def create_generation_tab(title, with_image_input, session):
             image = gr.Image(label="Guide/initial image (keep small with dimensions that are multiples of 64)", interactive=True)
         else:
             image = None
+            
         local_prompt = gr.Textbox(label="Prompt        (the sentence to generate the image from)", max_lines=1, value=session["prompt"])
         with gr.Row():
             local_seed = gr.Number(label="Seed        (use this number to regenerate the same image/style in future)", value=session["seed"], precision=0)
@@ -365,27 +366,21 @@ def create_generation_tab(title, with_image_input, session):
             with gr.Column():
                 local_output1 = gr.Image(label="Generated image", interactive=False)
                 local_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
-                if image:
-                    use_btn = gr.Button(value="Use for generation")
-                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=local_output1, outputs=image)
+                use_btn1 = gr.Button(value="Use for image-to-image generation")
             with gr.Column():
                 local_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1, interactive=False)
                 local_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>1)
-                if image:
-                    use_btn = gr.Button(value="Use for generation", visible=SHOW_COUNT>1)
-                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=local_output2, outputs=image)
+                use_btn2 = gr.Button(value="Use for image-to-image generation", visible=SHOW_COUNT>1)
             with gr.Column():
                 local_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2, interactive=False)
                 local_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>2)
-                if image:
-                    use_btn = gr.Button(value="Use for generation", visible=SHOW_COUNT>2)
-                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=local_output3, outputs=image)
+                use_btn3 = gr.Button(value="Use for image-to-image generation", visible=SHOW_COUNT>2)
         message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
         if with_image_input:
             generate_btn.click(fn=generate_i2i, inputs=[image, local_prompt, local_seed, local_steps, local_cfg_scale], outputs=[local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message])
         else:
             generate_btn.click(fn=generate_t2i, inputs=[local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale], outputs=[local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message])
-        return local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale, local_output1, local_seed1, local_output2, local_seed2, local_output3, local_seed3, image
+        return local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale, local_output1, local_seed1, local_output2, local_seed2, local_output3, local_seed3, image, [use_btn1, use_btn2, use_btn3]
 
         
 def create_prompt_history_tab(tti_prompt, iti_prompt):    
@@ -515,10 +510,24 @@ def main():
     # the main Gradio GUI layout generation
     with gr.Blocks(title="Stable Diffusion GUI") as demo:
         with gr.Tabs():
+            use_buttons = []
             # Text to image tab
-            tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_output1, tti_seed1, tti_output2, tti_seed2, tti_output3, tti_seed3, _ = create_generation_tab("Text to Image", False, get_t2i_session_settings())
+            tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_output1, tti_seed1, tti_output2, tti_seed2, tti_output3, tti_seed3, _, tti_use_buttons,  = \
+                create_generation_tab("Text to Image", False, get_t2i_session_settings())
+            use_buttons = use_buttons + tti_use_buttons
             # Image to image tab
-            iti_prompt, iti_seed, iti_steps, iti_width, iti_height, iti_cfg_scale, iti_output1, iti_seed1, iti_output2, iti_seed2, iti_output3, iti_seed3, iti_image = create_generation_tab("Image to Image", True, get_i2i_session_settings())
+            iti_prompt, iti_seed, iti_steps, iti_width, iti_height, iti_cfg_scale, iti_output1, iti_seed1, iti_output2, iti_seed2, iti_output3, iti_seed3, iti_image, iti_use_buttons = \
+                create_generation_tab("Image to Image", True, get_i2i_session_settings())
+            use_buttons = use_buttons + iti_use_buttons
+
+            use_buttons[0].click(fn=lambda prompt, seed, source: [gr.update(value=prompt), gr.update(value=seed), gr.update(value=source)], inputs=[tti_prompt, tti_seed, tti_output1], outputs=[iti_prompt, iti_seed, iti_image])
+            use_buttons[1].click(fn=lambda prompt, seed, source: [gr.update(value=prompt), gr.update(value=seed), gr.update(value=source)], inputs=[tti_prompt, tti_seed, tti_output2], outputs=[iti_prompt, iti_seed, iti_image])
+            use_buttons[2].click(fn=lambda prompt, seed, source: [gr.update(value=prompt), gr.update(value=seed), gr.update(value=source)], inputs=[tti_prompt, tti_seed, tti_output3], outputs=[iti_prompt, iti_seed, iti_image])
+            
+            use_buttons[3].click(fn=lambda source: gr.update(value=source), inputs=iti_output1, outputs=iti_image)
+            use_buttons[4].click(fn=lambda source: gr.update(value=source), inputs=iti_output2, outputs=iti_image)
+            use_buttons[5].click(fn=lambda source: gr.update(value=source), inputs=iti_output3, outputs=iti_image)
+            
             # Image history tab
             create_image_history_tab([tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_prompt, iti_seed, iti_steps, iti_width, iti_height, iti_cfg_scale, iti_prompt, iti_image])
             # Prompt History tab    
