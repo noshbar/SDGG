@@ -128,8 +128,10 @@ def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
         if result is None:
             cursor = DATABASE.cursor()
             cursor.execute("INSERT INTO settings(width, height, steps, cfg_scale) VALUES(?, ?, ?, ?)", [width, height, steps, cfg_scale])
+            cursor.execute("SELECT last_insert_rowid();")
+            row = cursor.fetchone();
             DATABASE.commit()
-            settings_id = cursor.lastrowid
+            settings_id = row[0]
             settings_existed = False
         else:
             settings_id = result[0]
