@@ -73,7 +73,7 @@ def change_database(db_filename):
         
         
         
-def generate(prompt, seed, steps, width, height, cfg_scale):
+def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale):
     global database
     global outdir
     global t2i
@@ -86,7 +86,8 @@ def generate(prompt, seed, steps, width, height, cfg_scale):
 
     message = "Successfully generated"
 
-    save_session_settings(prompt, seed, steps, cfg_scale, width, height)
+    if not init_image_filename:
+        save_t2i_session_settings(prompt, seed, steps, cfg_scale, width, height)
 
     # try find if the image was already generated
     prompt = prompt.lower()
@@ -121,7 +122,7 @@ def generate(prompt, seed, steps, width, height, cfg_scale):
 
         # retrieve existing images, or generate new ones here
         image_existed = False
-        if settings_existed and prompt_existed:
+        if (init_image_filename is None) and settings_existed and prompt_existed:
             cursor = database.cursor()
             cursor.execute("SELECT filename FROM image WHERE prompt_id=? AND settings_id=? AND seed=?", [prompt_id, settings_id, seed])
             rows = cursor.fetchmany(SHOW_COUNT)
@@ -133,7 +134,10 @@ def generate(prompt, seed, steps, width, height, cfg_scale):
                     seeds[index] = seed
         # if we couldn't get 3 images, just regenerate
         if not image_existed:
-            results = t2i.txt2img(prompt=prompt, outdir=outdir, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale)
+            if init_image_filename:
+                results = t2i.img2img(prompt=prompt, outdir=outdir, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale, init_img=init_image_filename)
+            else:
+                results = t2i.txt2img(prompt=prompt, outdir=outdir, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale)
             for index, result in enumerate(results):
                 images[index] = asarray(Image.open(result[0]))
                 seeds[index] = result[1]
@@ -161,7 +165,7 @@ def get_prompts():
     return result
 
    
-def save_session_settings(prompt, seed, steps, cfg_scale, width, height):
+def save_t2i_session_settings(prompt, seed, steps, cfg_scale, width, height):
     global database
     try:
         cursor = database.cursor()
@@ -169,9 +173,17 @@ def save_session_settings(prompt, seed, steps, cfg_scale, width, height):
         database.commit()
     except lite.Error as e:
         print(f"Database exception while saving session\n: {e.args[0]}")
-    return session
+    result = { \
+        "prompt": prompt, \
+        "seed": seed, \
+        "steps": steps, \
+        "cfg_scale": cfg_scale, \
+        "width": width, \
+        "height": height, \
+    }
+    return result
 
-def get_session_settings():
+def get_t2i_session_settings():
     global database
     result = { \
         "prompt": "", \
@@ -194,6 +206,19 @@ def get_session_settings():
             result["height"] = session[5]
     except lite.Error as e:
         print(f"Database exception while loading session\n: {e.args[0]}")
+    return result
+
+def get_i2i_session_settings():
+    global database
+    result = { \
+        "prompt": "", \
+        "seed": 31337, \
+        "steps": 50, \
+        "cfg_scale": 7.5, \
+        "width": 512, \
+        "height": 512, \
+    }
+    # no DB settings for it yet
     return result
     
 def get_images_next(p, start):
@@ -297,27 +322,40 @@ if not result:
 last_prompt = ""    
     
     
-with gr.Blocks(title="Stable Diffusion GUI") as demo:
-    # try load a previous session, if any
-    session = get_session_settings()
+def generate_t2i(prompt, seed, steps, width, height, cfg_scale):
+    return generate(None, prompt, seed, steps, width, height, cfg_scale)
 
-    with gr.Tabs():
-        # Text to image tab
-        with gr.TabItem("Text to Image"):
-            tti_prompt = gr.Textbox(label="Prompt        (the sentence to generate the image from)", max_lines=1, value=session["prompt"])
-            with gr.Row():
-                tti_seed = gr.Number(label="Seed        (use this number to regenerate the same image/style in future)", value=session["seed"], precision=0)
-                tti_random = gr.Button(value="Randomize seed")
-                tti_random.click(fn=lambda: gr.update(value=random.randint(0, 4294967295)), inputs=None, outputs=tti_seed)
-            tti_steps = gr.Slider(label="Steps        (how much it tries to refine the output)", minimum=0, maximum=200, value=session["steps"], step=1)
-            tti_cfg_scale = gr.Slider(label="Config scale        (how hard it tries to fit the image to the description, it can try TOO hard)", minimum=0, maximum=30, value=session["cfg_scale"], step=0.1)
-            with gr.Row():
-                with gr.Column():
-                    with gr.Row():
-                        with gr.Column():
-                            tti_width = gr.Number(label="Width (multiple of 64)", value=session["width"], precision=0)
-                        with gr.Column():
-                            tti_height = gr.Number(label="Height (multiple of 64)", value=session["height"], precision=0)
+def generate_i2i(image_numpy, prompt, seed, steps, cfg_scale):
+    global outdir
+    image = Image.fromarray(image_numpy)    
+    filename = outdir + "/temp.png"
+    image.save(filename)
+    width, height = image.size
+    steps = int(steps * 1.34) # no idea why, but the image to image script seems to use 74% of what you provide
+    
+    return generate(filename, prompt, seed, steps, width, height, cfg_scale)
+    
+def create_generation_tab(title, with_image_input, session):
+    with gr.TabItem(title):
+        if with_image_input:
+            image = gr.Image(label="Guide/initial image (keep small with dimensions that are multiples of 64)", interactive=True)
+        else:
+            image = None
+        tti_prompt = gr.Textbox(label="Prompt        (the sentence to generate the image from)", max_lines=1, value=session["prompt"])
+        with gr.Row():
+            tti_seed = gr.Number(label="Seed        (use this number to regenerate the same image/style in future)", value=session["seed"], precision=0)
+            tti_random = gr.Button(value="Randomize seed")
+            tti_random.click(fn=lambda: gr.update(value=random.randint(0, 4294967295)), inputs=None, outputs=tti_seed)
+        tti_steps = gr.Slider(label="Steps        (how much it tries to refine the output)", minimum=0, maximum=200, value=session["steps"], step=1)
+        tti_cfg_scale = gr.Slider(label="Config scale        (how hard it tries to fit the image to the description, it can try TOO hard)", minimum=0, maximum=30, value=session["cfg_scale"], step=0.1)
+        with gr.Row():
+            with gr.Column():
+                with gr.Row():
+                    with gr.Column():
+                        tti_width = gr.Number(label="Width (must be multiple of 64)", value=session["width"], precision=0, interactive=not with_image_input)
+                    with gr.Column():
+                        tti_height = gr.Number(label="Height (must be multiple of 64)", value=session["height"], precision=0, interactive=not with_image_input)
+            if not with_image_input:
                 with gr.Column():
                     with gr.Row():
                         with gr.Column():
@@ -326,19 +364,39 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                             gr.Button(value="Landscape").click(fn=lambda: [640, 448], inputs=None, outputs=[tti_width, tti_height])
                         with gr.Column():
                             gr.Button(value="Square").click(fn=lambda: [512, 512], inputs=None, outputs=[tti_width, tti_height])
-            generate_btn = gr.Button("Generate", variant='primary')
-            with gr.Row():
-                with gr.Column():
-                    tti_output1 = gr.Image(label="Generated image")
-                    tti_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
-                with gr.Column():
-                    tti_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1)
-                    tti_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>1)
-                with gr.Column():
-                    tti_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2)
-                    tti_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>2)
-            message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
-            generate_btn.click(fn=generate, inputs=[tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale], outputs=[tti_output1, tti_output2, tti_output3, tti_seed1, tti_seed2, tti_seed3, message])
+        generate_btn = gr.Button("Generate", variant='primary')
+        with gr.Row():
+            with gr.Column():
+                tti_output1 = gr.Image(label="Generated image")
+                tti_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                if image:
+                    use_btn = gr.Button(value="Use for generation")
+                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=tti_output1, outputs=image)
+            with gr.Column():
+                tti_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1)
+                tti_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>1)
+                if image:
+                    use_btn = gr.Button(value="Use for generation")
+                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=tti_output2, outputs=image)
+            with gr.Column():
+                tti_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2)
+                tti_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>2)
+                if image:
+                    use_btn = gr.Button(value="Use for generation")
+                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=tti_output3, outputs=image)
+        message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
+        if with_image_input:
+            generate_btn.click(fn=generate_i2i, inputs=[image, tti_prompt, tti_seed, tti_steps, tti_cfg_scale], outputs=[tti_output1, tti_output2, tti_output3, tti_seed1, tti_seed2, tti_seed3, message])
+        else:
+            generate_btn.click(fn=generate_t2i, inputs=[tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale], outputs=[tti_output1, tti_output2, tti_output3, tti_seed1, tti_seed2, tti_seed3, message])
+        return tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_output1, tti_seed1, tti_output2, tti_seed2, tti_output3, tti_seed3, image
+    
+with gr.Blocks(title="Stable Diffusion GUI") as demo:
+    with gr.Tabs():
+        # Text to image tab
+        tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_output1, tti_seed1, tti_output2, tti_seed2, tti_output3, tti_seed3, _ = create_generation_tab("Text to Image", False, get_t2i_session_settings())
+        # Image to image tab
+        iti_prompt, iti_seed, iti_steps, iti_width, iti_height, iti_cfg_scale, iti_output1, iti_seed1, iti_output2, iti_seed2, iti_output3, iti_seed3, iti_image = create_generation_tab("Image to Image", True, get_i2i_session_settings())
             
         # Image history tab
         with gr.TabItem("Image history"):
@@ -373,7 +431,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 id_ = filename_[filename_.find('[')+1:-1]
                 try:
                     cursor_ = database.cursor()
-                    cursor_.execute("SELECT image.seed, settings.steps, settings.width, settings.height, settings.cfg_scale, prompt.description \
+                    cursor_.execute("SELECT image.seed, settings.steps, settings.width, settings.height, settings.cfg_scale, prompt.description, image.filename \
                     FROM image \
                     INNER JOIN settings ON settings.id=image.settings_id \
                     INNER JOIN prompt ON prompt.ROWID=image.prompt_id \
@@ -383,7 +441,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                         result_ = [row_[0], row_[1], row_[2], row_[3], row_[4], row_[5]]
                 except lite.Error as e:
                     print(f"Database exception trying to get image history: {e}")
-                return result_
+                return result_ + result_ + [row_[6]] # twice because text to image AND image to image are updated
                 
             # UI controls    
             ima_start = gr.Variable(value=0)
@@ -402,7 +460,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                             ima_image = gr.Image(interactive=False)
                             ima_outputs.append(ima_image)
                             ima_butt = gr.Button(value='Reuse settings ☝️', variant='secondary', visible=False)
-                            ima_butt.click(fn=use_image_history, inputs=ima_butt, outputs=[tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_prompt])
+                            ima_butt.click(fn=use_image_history, inputs=ima_butt, outputs=[tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_prompt, iti_seed, iti_steps, iti_width, iti_height, iti_cfg_scale, iti_prompt, iti_image])
                             ima_outputs.append(ima_butt)
             ima_fetch2 = gr.Button(value='Fetch', variant='primary')
             ima_outputs.append(ima_fetch2)
