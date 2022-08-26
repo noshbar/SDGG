@@ -120,7 +120,7 @@ def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
             settings_id = result[0]
             settings_existed = True
 
-        # retrieve existing images, or generate new ones here
+        # retrieve existing images, or generate new ones here. if doing image to image, no way to know if the source changed right now, so always regenerate
         image_existed = False
         if (init_image_filename is None) and settings_existed and prompt_existed:
             cursor = database.cursor()
@@ -341,55 +341,55 @@ def create_generation_tab(title, with_image_input, session):
             image = gr.Image(label="Guide/initial image (keep small with dimensions that are multiples of 64)", interactive=True)
         else:
             image = None
-        tti_prompt = gr.Textbox(label="Prompt        (the sentence to generate the image from)", max_lines=1, value=session["prompt"])
+        local_prompt = gr.Textbox(label="Prompt        (the sentence to generate the image from)", max_lines=1, value=session["prompt"])
         with gr.Row():
-            tti_seed = gr.Number(label="Seed        (use this number to regenerate the same image/style in future)", value=session["seed"], precision=0)
-            tti_random = gr.Button(value="Randomize seed")
-            tti_random.click(fn=lambda: gr.update(value=random.randint(0, 4294967295)), inputs=None, outputs=tti_seed)
-        tti_steps = gr.Slider(label="Steps        (how much it tries to refine the output)", minimum=0, maximum=200, value=session["steps"], step=1)
-        tti_cfg_scale = gr.Slider(label="Config scale        (how hard it tries to fit the image to the description, it can try TOO hard)", minimum=0, maximum=30, value=session["cfg_scale"], step=0.1)
+            local_seed = gr.Number(label="Seed        (use this number to regenerate the same image/style in future)", value=session["seed"], precision=0)
+            local_random = gr.Button(value="Randomize seed")
+            local_random.click(fn=lambda: gr.update(value=random.randint(0, 4294967295)), inputs=None, outputs=local_seed)
+        local_steps = gr.Slider(label="Steps        (how much it tries to refine the output)", minimum=0, maximum=200, value=session["steps"], step=1)
+        local_cfg_scale = gr.Slider(label="Config scale        (how hard it tries to fit the image to the description, it can try TOO hard)", minimum=0, maximum=30, value=session["cfg_scale"], step=0.1)
         with gr.Row():
             with gr.Column():
                 with gr.Row():
                     with gr.Column():
-                        tti_width = gr.Number(label="Width (must be multiple of 64)", value=session["width"], precision=0, interactive=not with_image_input)
+                        local_width = gr.Number(label="Width (must be multiple of 64)", value=session["width"], precision=0, interactive=not with_image_input)
                     with gr.Column():
-                        tti_height = gr.Number(label="Height (must be multiple of 64)", value=session["height"], precision=0, interactive=not with_image_input)
+                        local_height = gr.Number(label="Height (must be multiple of 64)", value=session["height"], precision=0, interactive=not with_image_input)
             if not with_image_input:
                 with gr.Column():
                     with gr.Row():
                         with gr.Column():
-                            gr.Button(value="Portrait").click(fn=lambda: [448, 640], inputs=None, outputs=[tti_width, tti_height])
+                            gr.Button(value="Portrait").click(fn=lambda: [448, 640], inputs=None, outputs=[local_width, local_height])
                         with gr.Column():
-                            gr.Button(value="Landscape").click(fn=lambda: [640, 448], inputs=None, outputs=[tti_width, tti_height])
+                            gr.Button(value="Landscape").click(fn=lambda: [640, 448], inputs=None, outputs=[local_width, local_height])
                         with gr.Column():
-                            gr.Button(value="Square").click(fn=lambda: [512, 512], inputs=None, outputs=[tti_width, tti_height])
+                            gr.Button(value="Square").click(fn=lambda: [512, 512], inputs=None, outputs=[local_width, local_height])
         generate_btn = gr.Button("Generate", variant='primary')
         with gr.Row():
             with gr.Column():
-                tti_output1 = gr.Image(label="Generated image")
-                tti_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                local_output1 = gr.Image(label="Generated image", interactive=False)
+                local_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
                 if image:
                     use_btn = gr.Button(value="Use for generation")
-                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=tti_output1, outputs=image)
+                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=local_output1, outputs=image)
             with gr.Column():
-                tti_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1)
-                tti_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>1)
+                local_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1, interactive=False)
+                local_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>1)
                 if image:
-                    use_btn = gr.Button(value="Use for generation")
-                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=tti_output2, outputs=image)
+                    use_btn = gr.Button(value="Use for generation", visible=SHOW_COUNT>1)
+                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=local_output2, outputs=image)
             with gr.Column():
-                tti_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2)
-                tti_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>2)
+                local_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2, interactive=False)
+                local_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>2)
                 if image:
-                    use_btn = gr.Button(value="Use for generation")
-                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=tti_output3, outputs=image)
+                    use_btn = gr.Button(value="Use for generation", visible=SHOW_COUNT>2)
+                    use_btn.click(fn=lambda source: gr.update(value=source), inputs=local_output3, outputs=image)
         message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
         if with_image_input:
-            generate_btn.click(fn=generate_i2i, inputs=[image, tti_prompt, tti_seed, tti_steps, tti_cfg_scale], outputs=[tti_output1, tti_output2, tti_output3, tti_seed1, tti_seed2, tti_seed3, message])
+            generate_btn.click(fn=generate_i2i, inputs=[image, local_prompt, local_seed, local_steps, local_cfg_scale], outputs=[local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message])
         else:
-            generate_btn.click(fn=generate_t2i, inputs=[tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale], outputs=[tti_output1, tti_output2, tti_output3, tti_seed1, tti_seed2, tti_seed3, message])
-        return tti_prompt, tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_output1, tti_seed1, tti_output2, tti_seed2, tti_output3, tti_seed3, image
+            generate_btn.click(fn=generate_t2i, inputs=[local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale], outputs=[local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message])
+        return local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale, local_output1, local_seed1, local_output2, local_seed2, local_output3, local_seed3, image
     
 with gr.Blocks(title="Stable Diffusion GUI") as demo:
     with gr.Tabs():
@@ -540,7 +540,9 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                 )
                 # reload the model
                 t2i.load_model()
-                return [gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(value='Done')]
+                result_ = [gr.update(visible=count_>1), gr.update(visible=count_>2), gr.update(visible=count_>1), gr.update(visible=count_>2)]
+                result_ = result_ + result_ + [gr.update(value='Done')]
+                return result_
                 
             gr.Label(value="NOTE: these are not saved right now, check out the parameters of this Python script using --help for a more permanent solution")
             set_count = gr.Dropdown(label="Images to generate  (When parallel enabled with -p, try generating only 1 if you're struggling with memory issues and want to retain quality)", choices=[1,2,3], value=3)
@@ -551,7 +553,7 @@ with gr.Blocks(title="Stable Diffusion GUI") as demo:
                     set_apply = gr.Button(value='Apply', variant='primary')
                 with gr.Column():
                     set_status = gr.Label(label='Status')
-            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling, set_sampler], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, set_status])
+            set_apply.click(fn=apply_settings, inputs=[set_count, set_downsampling, set_sampler], outputs=[tti_output2, tti_output3, tti_seed2, tti_seed3, iti_output2, iti_output3, iti_seed2, iti_seed3, set_status])
    
    
 sys.path.append('.')
