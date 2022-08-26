@@ -38,6 +38,8 @@ Then continue from (3) in the quickstart.
 
 ### Features
 
+* text to image
+* image to image
 * simple GUI to adjust most common generation settings
 * saves all the prompts you use to a database so you can reuse them in future (searching by keyword coming soon, maybe)
 * saves your session details so if the server restarts and you refresh your page, you'll get where you last left off
@@ -48,18 +50,15 @@ Then continue from (3) in the quickstart.
 
 * clicking "use" on the prompt history tab or "use settings" on the image history tab WILL copy the settings to the "text to image" tab, but you'll have to swap tabs manually
 * the prompt history will not contain new prompts until the server is restarted (you can however use the image history)
-* hard-coded to generate 3 images at the moment
-* the seeds reported on the second 2 images is wrong, I can't figure out how to get the internal seeds used
+* when using parallel generation, the seeds reported on the second 2 images is wrong, I can't figure out how to get the internal seeds used
 
 ### TODO
 
 Oh so SO much
 * add proper searching through prompts (matches, contains, is like, etc.)
-* add support for img2img
 * wait for the dropdown bug to be fixed so new prompts can be added to the prompt history without restarting the server first
 * refactor out into different classes, get rid of globals, etc.
 * refactor to use offical repo without changes
 * file/fix Gradio bugs so that things like using a dropdown box work to cause actions to happen, to get rid of some buttons
 * figure out how to make buttons occur before the elements they act on
 * figure out how to make the images in the gallery clickable (not possible in Gradio at the moment, and _js fails to work)
-* add a settings tab
