@@ -18,15 +18,16 @@ from ldm_old.simplet2i import T2I
 DEBUG = False
 
 # hack hack la la hack
-arg_parser = argparse.ArgumentParser(description='Sable Diffusion Gradio GUI')
+arg_parser = argparse.ArgumentParser(description='Stable Diffusion Gradio GUI')
 arg_parser.add_argument('-df', '--downsampling_factor', dest='downsampling_factor', type=int, help='BUGGY! for less VRAM usage, lower quality, faster generation, try 9 as a value', default=8)
-arg_parser.add_argument('-s', '--sampler', dest='sampler', type=str, help='Which sampler to use (klms/plms)', default='klms')
+arg_parser.add_argument('-s', '--sampler', dest='sampler', type=str, help='which sampler to use (klms/plms)', default='klms')
 arg_parser.add_argument('-p', '--parallel', dest='PARALLEL', type=bool, help='generate the entire batch at once, slightly quicker, uses more VRAM', default=False)
 arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='with -p, how many images to generate if you''re having VRAM issues (1..3)', default=3)
+arg_parser.add_argument('-of', '--output_folder', dest='OUTPUT_FOLDER', type=str, help='the sub-folder within ./outputs to store generated images and the prompt database', default='sdgg')
 args = arg_parser.parse_args()
 
 # globals here we go!    
-OUTDIR   = "outputs/sdgg"
+OUTDIR   = "outputs/" + args.OUTPUT_FOLDER
 CONFIG   = "configs/stable-diffusion/v1-inference.yaml"
 WEIGHTS  = "models/ldm/stable-diffusion-v1/model.ckpt"
 

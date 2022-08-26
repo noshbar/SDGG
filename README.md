@@ -14,8 +14,10 @@ This is a web-based user interface for generating images using the Stable Diffus
 
 Setup:
 1. Clone [the official Stable Diffusion repo](https://github.com/CompVis/stable-diffusion) and create and activate the environment as instructed in their docs
+    * developed against commit 69ae4b35e0a0f6ee1af8bb9a5d0016ccb27e36dc, in case things break in the future
 2. Clone this repo and copy the files to the same folder you just cloned the above to
 3. Run `pip install gradio`
+    * developed against version 3.1.7
 4. Run `pip install -e git+https://github.com/lstein/k-diffusion.git@master#egg=k-diffusion`
 
 Running:
