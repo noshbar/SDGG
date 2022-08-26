@@ -426,6 +426,20 @@ def create_prompt_history_tab(tti_prompt, iti_prompt):
     
 def create_image_history_tab(outputs):
     with gr.TabItem("Image history"):
+        def make_red_cross_image():
+            not_exist_ = Image.new('RGB', (64, 64))
+            for y in range(32):
+                for x in range(32):
+                    if x == y:
+                        colour = (255, 0, 0)
+                    else:
+                        colour = (255, 255, 255)
+                    not_exist_.putpixel((x, y), colour)
+                    not_exist_.putpixel((63-x, y), colour)
+                    not_exist_.putpixel((x, 63-y), colour)
+                    not_exist_.putpixel((63-x, 63-y), colour)
+            return asarray(not_exist_)
+        
         # callback functions
         def update_image_history(start_, filter_mode_, filter_text_):
             result_ = []
@@ -438,12 +452,19 @@ def create_image_history_tab(outputs):
             count_ = len(history_)
             for index_ in range(25):
                 if index_ < count_:
-                    result_.append(gr.update(visible=True, value=history_[index_]['filename'], label=history_[index_]['seed']))
+                    exists_ = os.path.exists(history_[index_]['filename'])
+                    if exists_:
+                        path_ = history_[index_]['filename']
+                    else:
+                        path_ = make_red_cross_image()
+                    result_.append(gr.update(visible=True, value=path_, label=history_[index_]['seed']))
                     # y'know, I tried everything to try get the filename from here into use_image_history() below, but making a variable
                     # during the initial image grid creation caused it to not be updated, and passing images as an input gets you a numpy array, sooo...
-                    result_.append(gr.update(visible=True, value="Reuse settings ☝️ ["+str(history_[index_]['id'])+"]")) # for the reuse settings button
+                    result_.append(gr.update(visible=exists_, value="Reuse settings ☝️ ["+str(history_[index_]['id'])+"]")) # for the reuse settings button
+                    result_.append(gr.update(visible=True, value="Delete forever ☝️ ["+str(history_[index_]['id'])+"]")) # for the reuse settings button
                 else:
                     result_.append(gr.update(value=None, visible=False))
+                    result_.append(gr.update(visible=False)) # for the reuse settings button
                     result_.append(gr.update(visible=False)) # for the reuse settings button
             if more_:
                 result_.append(gr.update(value='More')) # 2 of them 'cos we gots 2 buttons
@@ -468,6 +489,26 @@ def create_image_history_tab(outputs):
             except lite.Error as e:
                 print(f"Database exception trying to get image history: {e}")
             return result_ + result_ + [row_[6]] # twice because text to image AND image to image are updated
+
+        def remove_image_forever(filename_):
+            global DATABASE
+            id_ = filename_[filename_.find('[')+1:-1]
+            try:
+                cursor_ = DATABASE.cursor()
+                cursor_.execute("SELECT filename FROM image WHERE id=?", [id_])
+                row_ = cursor_.fetchone()
+                if row_:
+                    try:
+                        if os.path.exists(row_[0]):
+                            os.remove(row_[0])
+                        cursor_ = DATABASE.cursor()
+                        cursor_.execute("DELETE FROM image WHERE image.id=?", [id_])
+                        DATABASE.commit()
+                    except OSError as error:
+                        print(f"Could not delete image {error}\n")
+            except lite.Error as e:
+                print(f"Database exception trying get image to delete: {e}")
+            return [gr.update(value=make_red_cross_image()), gr.update(visible=False), gr.update(visible=False)]            
             
         # UI controls    
         ima_start = gr.Variable(value=0)
@@ -488,6 +529,9 @@ def create_image_history_tab(outputs):
                         ima_butt = gr.Button(value='Reuse settings ☝️', variant='secondary', visible=False)
                         ima_butt.click(fn=use_image_history, inputs=ima_butt, outputs=outputs)
                         ima_outputs.append(ima_butt)
+                        ima_remove = gr.Button(value='Delete ☝️ forever', variant='secondary', visible=False)
+                        ima_remove.click(fn=remove_image_forever, inputs=ima_remove, outputs=[ima_image, ima_butt, ima_remove])
+                        ima_outputs.append(ima_remove)
         ima_fetch2 = gr.Button(value='Fetch', variant='primary')
         ima_outputs.append(ima_fetch2)
         ima_fetch1.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)
