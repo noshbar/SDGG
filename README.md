@@ -20,20 +20,9 @@ Setup:
 
 Running:
 1. Run `python scripts\sdgg.py`
-    * optionally pass `-p true` to generate images in parallel (slight time saving)
-        * AND optionally pass `-bs 1` to only generate 1/2/3 image(s) at the same time, if you're having memory issues with parallel
+    * optionally pass `-p true` to generate images in parallel (slight time saving, more VRAM usage)
 2. Wait for it to load and show a message like `Running on local URL:  http://127.0.0.1:7860/`
 3. Browse to that address in your browser and start generating!
-
-
-### Side note
-
-I initially cloned [this fork](https://github.com/lstein/stable-diffusion) repo because it had `dream.py` in it, an interactive console application that I thought was neat.  
-However, it has progressed quickly itself, too, meaning updating that fork breaks this repo.  
-
-It now has a bunch of nice features, like being able to post-process faces to add more detail, and even has a web interface of its own.
-
-So only `sdgg.py` was done by me, I got the other scripts from that fork. It was only a stopgap anyway though, and I'd like to do away with any dependencies other than the official Stable Diffusion repo... eventually.
 
 ### Features
 
@@ -50,6 +39,15 @@ So only `sdgg.py` was done by me, I got the other scripts from that fork. It was
 * clicking "use" on the prompt history tab or "use settings" on the image history tab WILL copy the settings to the "text to image" tab, but you'll have to swap tabs manually
 * the prompt history will not contain new prompts until the server is restarted (you can however use the image history)
 * when using parallel generation, the seeds reported on the second 2 images is wrong, I can't figure out how to get the internal seeds used
+
+### Side note
+
+I initially cloned [this fork](https://github.com/lstein/stable-diffusion) repo because it had `dream.py` in it, an interactive console application that I thought was neat.  
+However, it has progressed quickly itself, too, meaning updating that fork breaks this repo.  
+
+It now has a bunch of nice features, like being able to post-process faces to add more detail, and even has a web interface of its own.
+
+So only `sdgg.py` was done by me, I got the other scripts from that fork. It was only a stopgap anyway though, and I'd like to do away with any dependencies other than the official Stable Diffusion repo... eventually.
 
 ### TODO
 
