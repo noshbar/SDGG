@@ -94,6 +94,7 @@ def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
 
     images = [None, None, None]
     seeds = [0, 0, 0]
+    ids = [0, 0, 0]
    
     if prompt.strip() == "":
         return [None, None, None, 0, 0, 0, "Please enter a valid prompt first"]
@@ -157,11 +158,19 @@ def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
                 seeds[index] = result[1]
                 cursor = DATABASE.cursor()
                 cursor.execute("INSERT INTO image(filename, prompt_id, settings_id, seed) values(?, ?, ?, ?)", [result[0], prompt_id, settings_id, result[1]])
+                cursor.execute("SELECT last_insert_rowid();")
+                row = cursor.fetchone();
+                ids[index] = row[0]
                 DATABASE.commit()
     except lite.Error as e:
         message = 'Database exception: ' + e.args[0]
                 
-    return [images[0], images[1], images[2], seeds[0], seeds[1], seeds[2], message]
+    results = [images[0], images[1], images[2], seeds[0], seeds[1], seeds[2], message, gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)]
+    for index in range(3):
+        visible = not images[index] is None
+        value = "Delete forever ["+str(ids[index])+"]"
+        results.append(gr.update(visible=visible, value=value))
+    return results
 
     
 def get_prompts():
@@ -317,6 +326,41 @@ def get_images_history(start, amount, filter_mode, filter_text):
     except lite.Error as e:
         print(f"Database exception trying to get image history: {e}")
     return result, start, more
+
+
+def make_red_cross_image():
+    not_exist = Image.new('RGB', (64, 64))
+    for y in range(32):
+        for x in range(32):
+            if x == y:
+                colour = (255, 0, 0)
+            else:
+                colour = (255, 255, 255)
+            not_exist.putpixel((x, y), colour)
+            not_exist.putpixel((63-x, y), colour)
+            not_exist.putpixel((x, 63-y), colour)
+            not_exist.putpixel((63-x, 63-y), colour)
+    return asarray(not_exist)
+
+def remove_image_forever(text_id):
+    global DATABASE
+    id = text_id[text_id.find('[')+1:text_id.rfind(']')]
+    try:
+        cursor = DATABASE.cursor()
+        cursor.execute("SELECT filename FROM image WHERE id=?", [id])
+        row = cursor.fetchone()
+        if row:
+            try:
+                if os.path.exists(row[0]):
+                    os.remove(row[0])
+                cursor = DATABASE.cursor()
+                cursor.execute("DELETE FROM image WHERE image.id=?", [id])
+                DATABASE.commit()
+            except OSError as error:
+                print(f"Could not delete image {error}\n")
+    except lite.Error as e:
+        print(f"Database exception trying get image to delete: {e}")
+    return [gr.update(value=make_red_cross_image()), gr.update(visible=False), gr.update(visible=False)]            
       
     
 def generate_t2i(prompt, seed, steps, width, height, cfg_scale):
@@ -367,20 +411,28 @@ def create_generation_tab(title, with_image_input, session):
             with gr.Column():
                 local_output1 = gr.Image(label="Generated image", interactive=False)
                 local_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
-                use_btn1 = gr.Button(value="Use for image-to-image generation")
+                use_btn1 = gr.Button(value="Use for image-to-image generation", visible=False)
+                remove_btn1 = gr.Button(value="Remove forever", visible=False)
+                remove_btn1.click(fn=remove_image_forever, inputs=remove_btn1, outputs=[local_output1, use_btn1, remove_btn1])
             with gr.Column():
                 local_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1, interactive=False)
-                local_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>1)
-                use_btn2 = gr.Button(value="Use for image-to-image generation", visible=SHOW_COUNT>1)
+                local_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=True)
+                use_btn2 = gr.Button(value="Use for image-to-image generation", visible=False)
+                remove_btn2 = gr.Button(value="Remove forever", visible=False)
+                remove_btn2.click(fn=remove_image_forever, inputs=remove_btn2, outputs=[local_output2, use_btn2, remove_btn2])
             with gr.Column():
                 local_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2, interactive=False)
-                local_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=SHOW_COUNT>2)
-                use_btn3 = gr.Button(value="Use for image-to-image generation", visible=SHOW_COUNT>2)
+                local_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=True)
+                use_btn3 = gr.Button(value="Use for image-to-image generation", visible=False)
+                remove_btn3 = gr.Button(value="Remove forever", visible=False)
+                remove_btn3.click(fn=remove_image_forever, inputs=remove_btn3, outputs=[local_output3, use_btn3, remove_btn3])
         message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
+        outputs_ = [local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message]
+        outputs_ += [use_btn1, use_btn2, use_btn3, remove_btn1, remove_btn2, remove_btn3]
         if with_image_input:
-            generate_btn.click(fn=generate_i2i, inputs=[image, local_prompt, local_seed, local_steps, local_cfg_scale], outputs=[local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message])
+            generate_btn.click(fn=generate_i2i, inputs=[image, local_prompt, local_seed, local_steps, local_cfg_scale], outputs=outputs_)
         else:
-            generate_btn.click(fn=generate_t2i, inputs=[local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale], outputs=[local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message])
+            generate_btn.click(fn=generate_t2i, inputs=[local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale], outputs=outputs_)
         return local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale, local_output1, local_seed1, local_output2, local_seed2, local_output3, local_seed3, image, [use_btn1, use_btn2, use_btn3]
 
         
@@ -426,20 +478,6 @@ def create_prompt_history_tab(tti_prompt, iti_prompt):
     
 def create_image_history_tab(outputs):
     with gr.TabItem("Image history"):
-        def make_red_cross_image():
-            not_exist_ = Image.new('RGB', (64, 64))
-            for y in range(32):
-                for x in range(32):
-                    if x == y:
-                        colour = (255, 0, 0)
-                    else:
-                        colour = (255, 255, 255)
-                    not_exist_.putpixel((x, y), colour)
-                    not_exist_.putpixel((63-x, y), colour)
-                    not_exist_.putpixel((x, 63-y), colour)
-                    not_exist_.putpixel((63-x, 63-y), colour)
-            return asarray(not_exist_)
-        
         # callback functions
         def update_image_history(start_, filter_mode_, filter_text_):
             result_ = []
@@ -474,8 +512,8 @@ def create_image_history_tab(outputs):
 
         def use_image_history(filename_):
             global DATABASE
-            result_ = [None, None, None, None, None, None] # seed, steps, width, height, cfg_scale, prompt
-            id_ = filename_[filename_.find('[')+1:-1]
+            result_ = [None, None, None, None, None, None] # seed, steps, width, height, cfg_scale, prompt            
+            id_ = filename_[filename_.find('[')+1:filename_.rfind(']')]
             try:
                 cursor_ = DATABASE.cursor()
                 cursor_.execute("SELECT image.seed, settings.steps, settings.width, settings.height, settings.cfg_scale, prompt.description, image.filename \
@@ -489,26 +527,6 @@ def create_image_history_tab(outputs):
             except lite.Error as e:
                 print(f"Database exception trying to get image history: {e}")
             return result_ + result_ + [row_[6]] # twice because text to image AND image to image are updated
-
-        def remove_image_forever(filename_):
-            global DATABASE
-            id_ = filename_[filename_.find('[')+1:-1]
-            try:
-                cursor_ = DATABASE.cursor()
-                cursor_.execute("SELECT filename FROM image WHERE id=?", [id_])
-                row_ = cursor_.fetchone()
-                if row_:
-                    try:
-                        if os.path.exists(row_[0]):
-                            os.remove(row_[0])
-                        cursor_ = DATABASE.cursor()
-                        cursor_.execute("DELETE FROM image WHERE image.id=?", [id_])
-                        DATABASE.commit()
-                    except OSError as error:
-                        print(f"Could not delete image {error}\n")
-            except lite.Error as e:
-                print(f"Database exception trying get image to delete: {e}")
-            return [gr.update(value=make_red_cross_image()), gr.update(visible=False), gr.update(visible=False)]            
             
         # UI controls    
         ima_start = gr.Variable(value=0)
