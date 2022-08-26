@@ -481,7 +481,17 @@ def create_prompt_history_tab(tti_prompt, iti_prompt):
 def create_image_history_tab(outputs):
     with gr.TabItem("Image history"):
         # callback functions
-        def update_image_history(start_, filter_mode_, filter_text_):
+        def update_image_history(start_, filter_mode_, filter_text_, offset_):
+            global DATABASE
+            if 'oldest' in offset_:
+                start_ = 0
+            if 'most recent' in offset_:
+                cursor_ = DATABASE.cursor()
+                cursor_.execute("SELECT id FROM image ORDER BY id DESC LIMIT 25")
+                row_ = cursor_.fetchall()
+                start_ = row_[-1][0]
+                
+                
             result_ = []
             history_, next_start_, more_ = get_images_history(start_, 25, filter_mode_, filter_text_)
             result_.append(next_start_)
@@ -538,7 +548,13 @@ def create_image_history_tab(outputs):
             with gr.Column():
                 ima_filter_text = gr.Textbox(label="Filter text", visible=False)
             ima_filter_mode.change(fn=lambda mode: gr.update(visible=not mode=='none'), inputs=ima_filter_mode, outputs=ima_filter_text)
-        ima_fetch1 = gr.Button(value='Fetch', variant='primary')
+        with gr.Row():
+            with gr.Column():
+                ima_fetch1 = gr.Button(value='Fetch', variant='primary')
+            with gr.Column():
+                ima_begin = gr.Button(value='Go to oldest images')
+            with gr.Column():
+                ima_end = gr.Button(value='Go to most recent images')
         ima_outputs = [ima_start, ima_fetch1]
         for y in range(5):
             with gr.Row():
@@ -554,8 +570,10 @@ def create_image_history_tab(outputs):
                         ima_outputs.append(ima_remove)
         ima_fetch2 = gr.Button(value='Fetch', variant='primary')
         ima_outputs.append(ima_fetch2)
-        ima_fetch1.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)
-        ima_fetch2.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text], outputs=ima_outputs)    
+        ima_fetch1.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text, ima_fetch1], outputs=ima_outputs)
+        ima_fetch2.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text, ima_fetch2], outputs=ima_outputs)    
+        ima_begin.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text, ima_begin], outputs=ima_outputs)
+        ima_end.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text, ima_end], outputs=ima_outputs)
     
 
 def main():    
