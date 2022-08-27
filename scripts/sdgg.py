@@ -510,7 +510,7 @@ def create_image_history_tab(outputs):
             history_, next_start_, more_ = get_images_history(start_, 25, filter_mode_, filter_text_)
             if more_:
                 result_.append(next_start_)
-                result_.append(gr.update(value='Next page', visible=True)) # 2 of them 'cos we gots 2 buttons
+                result_.append(gr.update(visible=True)) # 2 of them 'cos we gots 2 buttons
             elif not history_:
                 result_.append(1)
                 result_.append(gr.update(visible=False))
@@ -535,7 +535,7 @@ def create_image_history_tab(outputs):
                 result_.append(gr.update(visible=False)) # for the reuse settings button
                 result_.append(gr.update(visible=False)) # for the reuse settings button
             if more_:
-                result_.append(gr.update(value='Next page', visible=True)) # 2 of them 'cos we gots 2 buttons
+                result_.append(gr.update(visible=True)) # 2 of them 'cos we gots 2 next page buttons
             elif not history_:
                 result_.append(gr.update(visible=False))
             else:
@@ -623,7 +623,7 @@ def create_image_history_tab(outputs):
                 ima_filter_text_variable = gr.Variable(value="")
                 ima_filter_text = gr.Textbox(label="Filter text", interactive=True, max_lines=1, placeholder="Type a keyword to search for and press ENTER, or hit Apply")
             with gr.Column():
-                ima_apply_filter = gr.Button(value='Apply')
+                ima_apply_filter = gr.Button(value='Apply', variant='primary')
                 ima_reset_filter = gr.Button(value='Reset filter (also helps if you deleted a bunch)')
             ima_filter_mode.change(fn=lambda mode: gr.update(interactive=not mode=='none'), inputs=ima_filter_mode, outputs=ima_filter_text)
         with gr.Row():
@@ -646,7 +646,7 @@ def create_image_history_tab(outputs):
                     with gr.Column():
                         ima_pagecount_text = gr.Text(value="of " + str(len(choices_)), show_label=False, interactive=False)
             with gr.Column():
-                ima_fetch1 = gr.Button(value='Next page', variant='primary', visible=False)
+                ima_fetch1 = gr.Button(value='Next page (hit Apply if missing new pages)', variant='primary', visible=False)
             with gr.Column():
                 ima_end = gr.Button(value='Go to most recent images')
         ima_outputs = [ima_start, ima_fetch1]
@@ -662,7 +662,7 @@ def create_image_history_tab(outputs):
                         ima_remove = gr.Button(value='Delete ☝️ forever', variant='secondary', visible=False)
                         ima_remove.click(fn=remove_image_forever, inputs=ima_remove, outputs=[ima_image, ima_butt, ima_remove])
                         ima_outputs.append(ima_remove)
-        ima_fetch2 = gr.Button(value='Next page', variant='primary', visible=False)
+        ima_fetch2 = gr.Button(value='Next page (hit Apply if missing new pages)', variant='primary', visible=False)
         ima_outputs.append(ima_fetch2)
         
         next_outputs = ima_outputs + [ima_pages]
