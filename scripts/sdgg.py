@@ -593,7 +593,7 @@ def create_image_history_tab(outputs):
                 id_ = page_ids_[page_number_-1] # page numbers are 1..N, arrays are 0..N-1
             else:
                 id_ = 0
-            return update_image_history(id_, filter_mode_, filter_text_)
+            return update_image_history(id_, filter_mode_, filter_text_) + [gr.update(value='Go to page')]
 
         def next_page(filter_mode_, filter_text_, current_page_, page_ids_):
             if current_page_ == len(page_ids_):
@@ -630,7 +630,7 @@ def create_image_history_tab(outputs):
             with gr.Column():
                 with gr.Row():
                     with gr.Column():
-                        ima_gotopage = gr.Button(value='Go to page', variant='primary')
+                        ima_gotopage = gr.Button(value='Do initial load', variant='primary')
                     with gr.Column():
                         page_ids_ = get_page_ids(None, None)
                         ima_page_numbers = arange(1, len(page_ids_)+1).tolist()
@@ -669,7 +669,7 @@ def create_image_history_tab(outputs):
         ima_fetch1.click(fn=next_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=next_outputs)
         ima_fetch2.click(fn=next_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=next_outputs)    
         ima_end.click(fn=most_recent, inputs=[ima_filter_mode, ima_filter_text_variable, ima_page_map], outputs=ima_outputs + [ima_pages])
-        ima_gotopage.click(fn=goto_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=ima_outputs)
+        ima_gotopage.click(fn=goto_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=ima_outputs + [ima_gotopage])
         ima_moar = ima_outputs + [ima_page_map, ima_pages, ima_pagecount_text, ima_gotopage, ima_end, ima_filter_text_variable]
         ima_apply_filter.click(fn=apply_filter, inputs=[ima_filter_mode, ima_filter_text], outputs=ima_moar)
         ima_filter_text.submit(fn=apply_filter, inputs=[ima_filter_mode, ima_filter_text], outputs=ima_moar)
