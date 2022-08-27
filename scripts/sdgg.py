@@ -15,8 +15,6 @@ from numpy import asarray, arange
 sys.path.append('.')
 from ldm_old.simplet2i import T2I
 
-DEBUG = True
-
 # hack hack la la hack
 arg_parser = argparse.ArgumentParser(description='Stable Diffusion Gradio GUI')
 arg_parser.add_argument('-df', '--downsampling_factor', dest='downsampling_factor', type=int, help='BUGGY! for less VRAM usage, lower quality, faster generation, try 9 as a value', default=8)
@@ -24,12 +22,14 @@ arg_parser.add_argument('-s', '--sampler', dest='sampler', type=str, help='which
 arg_parser.add_argument('-p', '--parallel', dest='PARALLEL', type=bool, help='generate the entire batch at once, slightly quicker, uses more VRAM', default=False)
 arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='with -p, how many images to generate if you''re having VRAM issues (1..3)', default=3)
 arg_parser.add_argument('-of', '--output_folder', dest='OUTPUT_FOLDER', type=str, help='the sub-folder within ./outputs to store generated images and the prompt database', default='sdgg')
+arg_parser.add_argument('-Z', '--debug', dest='DEBUG', type=str, help='Disable loading of ML stuff to debug Gradio stuff quicker', default=False)
 args = arg_parser.parse_args()
 
 # globals here we go!    
 OUTDIR   = "outputs/" + args.OUTPUT_FOLDER
 CONFIG   = "configs/stable-diffusion/v1-inference.yaml"
 WEIGHTS  = "models/ldm/stable-diffusion-v1/model.ckpt"
+DEBUG    = args.DEBUG
 
 SAMPLER = args.sampler
 IMAGE_COUNT = args.IMAGE_COUNT # MAX 3!
@@ -311,7 +311,7 @@ def get_images_history(start, amount, filter_mode, filter_text):
     more = False
     try:
         cursor = DATABASE.cursor()
-        if (not filter_mode) or (filter_mode == 'none') or (filter_text.strip() == ""):
+        if (not filter_mode) or (filter_mode == 'none') or (not filter_text) or (filter_text.strip() == ""):
             cursor.execute("SELECT filename, seed, id FROM image WHERE id>=? ORDER BY id LIMIT ?", [start, amount+1])
         else:   
             cursor.execute('SELECT filename, seed, id FROM image WHERE id>=? AND prompt_id IN (SELECT rowid FROM prompt WHERE description LIKE ''?'') ORDER BY id LIMIT ?', [start, '%'+filter_text+'%', amount+1])
@@ -507,20 +507,22 @@ def create_image_history_tab(outputs):
                 cursor_ = DATABASE.cursor()
                 cursor_.execute("SELECT id FROM image ORDER BY id DESC LIMIT 25")
                 row_ = cursor_.fetchall()
-                start_ = row_[-1][0]
-                
+                start_ = row_[0][0]
                 
             result_ = []
             history_, next_start_, more_ = get_images_history(start_, 25, filter_mode_, filter_text_)
             if more_:
                 result_.append(next_start_)
                 result_.append(gr.update(value='Next page', visible=True)) # 2 of them 'cos we gots 2 buttons
+            elif not history_:
+                result_.append(1)
+                result_.append(gr.update(visible=False))
             else:
                 result_.append(1)
                 result_.append(gr.update(value='Restart from beginning', visible=True))
             count_ = len(history_)
-            for index_ in range(25):
-                if index_ < count_:
+            if count_:
+                for index_ in range(count_):
                     exists_ = os.path.exists(history_[index_]['filename'])
                     if exists_:
                         path_ = history_[index_]['filename']
@@ -531,12 +533,14 @@ def create_image_history_tab(outputs):
                     # during the initial image grid creation caused it to not be updated, and passing images as an input gets you a numpy array, sooo...
                     result_.append(gr.update(visible=exists_, value="Reuse settings ☝️ ["+str(history_[index_]['id'])+"]")) # for the reuse settings button
                     result_.append(gr.update(visible=True, value="Delete forever ☝️ ["+str(history_[index_]['id'])+"]")) # for the reuse settings button
-                else:
-                    result_.append(gr.update(value=None, visible=False))
-                    result_.append(gr.update(visible=False)) # for the reuse settings button
-                    result_.append(gr.update(visible=False)) # for the reuse settings button
+            for index in range(25-count_):
+                result_.append(gr.update(value=None, visible=False))
+                result_.append(gr.update(visible=False)) # for the reuse settings button
+                result_.append(gr.update(visible=False)) # for the reuse settings button
             if more_:
                 result_.append(gr.update(value='Next page', visible=True)) # 2 of them 'cos we gots 2 buttons
+            elif not history_:
+                result_.append(gr.update(visible=False))
             else:
                 result_.append(gr.update(value='Restart from beginning', visible=True))
             return result_
@@ -558,21 +562,40 @@ def create_image_history_tab(outputs):
             except lite.Error as e:
                 print(f"Database exception trying to get image history: {e}")
             return result_ + result_ + [row_[6]] # twice because text to image AND image to image are updated
-            
-        def apply_filter(filter_mode_, filter_text_):
+
+        def do_filter(filter_mode_, filter_text_):
             page_ids_ = get_page_ids(filter_mode_, filter_text_)
             page_numbers_ = arange(1, len(page_ids_)+1).tolist()
+            # would be really nice to be able to early out here, but got a whoooole lotta UI's updates to honour
             
             result_ = update_image_history(0, filter_mode_, filter_text_, '')
             result_.append(page_ids_)
-            result_.append(gr.update(value=1, choices=page_numbers_))
-            new_label_ = "of " + str(page_numbers_[-1])
-            result_.append(new_label_)
+            
+            if len(page_numbers_):
+                result_.append(gr.update(value=1, choices=page_numbers_, visible=True))
+                new_label_ = "of " + str(page_numbers_[-1])
+                result_.append(gr.update(value=new_label_, visible=True))
+                result_.append(gr.update(visible=True)) # goto page
+                result_.append(gr.update(visible=True)) # goto most recent
+            else:
+                result_.append(gr.update(visible=False))
+                result_.append(gr.update(visible=False))
+                result_.append(gr.update(visible=False)) # goto page
+                result_.append(gr.update(visible=False)) # goto most recent
             result_.append(filter_text_)
             return result_      
+            
+        def apply_filter(filter_mode_, filter_text_):
+            return do_filter(filter_mode_, filter_text_)
 
+        def reset_filter():
+            return do_filter(None, None)
+            
         def goto_page(filter_mode_, filter_text_, page_number_, page_ids_):
-            id_ = page_ids_[page_number_-1] # page numbers are 1..N, arrays are 0..N-1
+            if page_ids_:
+                id_ = page_ids_[page_number_-1] # page numbers are 1..N, arrays are 0..N-1
+            else:
+                id_ = 0
             return update_image_history(id_, filter_mode_, filter_text_, '')
 
         def next_page(filter_mode_, filter_text_, current_page_, page_ids_):
@@ -585,6 +608,11 @@ def create_image_history_tab(outputs):
             result_.append(new_page_)
             return result_
 
+        def most_recent(filter_mode_, filter_text_, offset_, pages_):
+            result_ = update_image_history(pages_[-1], filter_mode_, filter_text_, '')
+            result_.append(len(pages_))
+            return result_
+            
         # UI controls    
         ima_start = gr.Variable(value=0)
         with gr.Row():
@@ -592,9 +620,10 @@ def create_image_history_tab(outputs):
                 ima_filter_mode = gr.Dropdown(label="Filter mode", choices=["none", "contains word"], value="contains word")
             with gr.Column():
                 ima_filter_text_variable = gr.Variable(value="")
-                ima_filter_text = gr.Textbox(label="Filter text", interactive=True, max_lines=1)
+                ima_filter_text = gr.Textbox(label="Filter text", interactive=True, max_lines=1, placeholder="Type a keyword to search for and press ENTER, or hit Apply")
             with gr.Column():
                 ima_apply_filter = gr.Button(value='Apply')
+                ima_reset_filter = gr.Button(value='Reset filter (also helps if you deleted a bunch)')
             ima_filter_mode.change(fn=lambda mode: gr.update(interactive=not mode=='none'), inputs=ima_filter_mode, outputs=ima_filter_text)
         with gr.Row():
             with gr.Column():
@@ -632,12 +661,13 @@ def create_image_history_tab(outputs):
         next_outputs = ima_outputs + [ima_pages]
         ima_fetch1.click(fn=next_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=next_outputs)
         ima_fetch2.click(fn=next_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=next_outputs)    
-        ima_end.click(fn=update_image_history, inputs=[ima_start, ima_filter_mode, ima_filter_text_variable, ima_end], outputs=ima_outputs)
+        ima_end.click(fn=most_recent, inputs=[ima_filter_mode, ima_filter_text_variable, ima_end, ima_page_map], outputs=ima_outputs + [ima_pages])
         ima_gotopage.click(fn=goto_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=ima_outputs)
-        ima_moar = ima_outputs + [ima_page_map, ima_pages, ima_pagecount_text, ima_filter_text_variable]
+        ima_moar = ima_outputs + [ima_page_map, ima_pages, ima_pagecount_text, ima_gotopage, ima_end, ima_filter_text_variable]
         ima_apply_filter.click(fn=apply_filter, inputs=[ima_filter_mode, ima_filter_text], outputs=ima_moar)
         ima_filter_text.submit(fn=apply_filter, inputs=[ima_filter_mode, ima_filter_text], outputs=ima_moar)
-
+        ima_reset_filter.click(fn=reset_filter, inputs=None, outputs=ima_moar)
+        
 def main():    
     global OUTDIR
     global DEBUG
