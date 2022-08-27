@@ -382,12 +382,12 @@ def create_generation_tab(title, with_image_input, session):
                 with gr.Row():
                     with gr.Column():
                         if with_image_input:
-                            local_width = gr.Textbox(label="Width", value=session["width"], interactive=False)
+                            local_width = gr.Textbox(label="Width", value=session["width"], interactive=False, visible=False)
                         else:
                             local_width = gr.Dropdown(label="Width", value=session["width"], choices=[256,320,384,448,512,576,640,704,768,832,896,960,1024], interactive=True)
                     with gr.Column():
                         if with_image_input:
-                            local_height = gr.Textbox(label="Height", value=session["height"], interactive=False)
+                            local_height = gr.Textbox(label="Height", value=session["height"], interactive=False, visible=False)
                         else:
                             local_height = gr.Dropdown(label="Height", value=session["height"], choices=[256,320,384,448,512,576,640,704,768,832,896,960,1024], interactive=True)
             if not with_image_input:
@@ -632,9 +632,15 @@ def create_image_history_tab(outputs):
                         ima_page_numbers = arange(1, len(page_ids_)+1).tolist()
                         ima_page_map = gr.Variable(value=page_ids_)
                     with gr.Column():
-                        ima_pages = gr.Dropdown(show_label=False, choices=ima_page_numbers, value=ima_page_numbers[0], interactive=True)
+                        if ima_page_numbers:
+                            choices_ = ima_page_numbers
+                            selected_ = ima_page_numbers[0]
+                        else:
+                            choices_ = [1]
+                            selected_ = 1
+                        ima_pages = gr.Dropdown(show_label=False, choices=choices_, value=selected_, interactive=True)
                     with gr.Column():
-                        ima_pagecount_text = gr.Text(value="of " + str(ima_page_numbers[-1]), show_label=False, interactive=False)
+                        ima_pagecount_text = gr.Text(value="of " + str(selected_-1), show_label=False, interactive=False)
             with gr.Column():
                 ima_fetch1 = gr.Button(value='Next page', variant='primary', visible=False)
             with gr.Column():
