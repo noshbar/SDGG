@@ -198,8 +198,8 @@ def save_t2i_session_settings(prompt, seed, steps, cfg_scale, width, height):
 def get_t2i_session_settings():
     global DATABASE
     result = { \
-        "prompt": "", \
-        "seed": 31337, \
+        "prompt": "corgi wargaming miniature", \
+        "seed": 1604788626, \
         "steps": 50, \
         "cfg_scale": 7.5, \
         "width": 512, \
@@ -370,7 +370,7 @@ def create_generation_tab(title, with_image_input, session):
         else:
             image = None
             
-        local_prompt = gr.Textbox(label="Prompt        (the sentence to generate the image from)", max_lines=1, value=session["prompt"])
+        local_prompt = gr.Textbox(label="Prompt        (the sentence to generate the image from)", max_lines=1, value=session["prompt"], placeholder='For inspiration, check out https://lexica.art')
         with gr.Row():
             local_seed = gr.Number(label="Seed        (use this number to regenerate the same image/style in future)", value=session["seed"], precision=0)
             local_random = gr.Button(value="Randomize seed")
@@ -644,7 +644,7 @@ def create_image_history_tab(outputs):
                             selected_ = 1
                         ima_pages = gr.Dropdown(show_label=False, choices=choices_, value=selected_, interactive=True)
                     with gr.Column():
-                        ima_pagecount_text = gr.Text(value="of " + str(len(choices_)-1), show_label=False, interactive=False)
+                        ima_pagecount_text = gr.Text(value="of " + str(len(choices_)), show_label=False, interactive=False)
             with gr.Column():
                 ima_fetch1 = gr.Button(value='Next page', variant='primary', visible=False)
             with gr.Column():
