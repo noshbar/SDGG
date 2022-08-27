@@ -56,6 +56,8 @@ This is how I got up and running:
 * tries to prevent generating the same images again, if they're found, they'll be returned immediately from the outputs folder
 * provides rudimentary browsing of generated images, allowing you to copy settings used for generating
 * using the `-of <category>` parameter, you can store results in different folders, e.g., one for "animals", one for "fantasy", one for "taxes", whatever, to prevent things getting too unwieldly
+* weighted prompts
+    * the example from the [lstein fork](https://github.com/lstein/stable-diffusion) is: `tabby cat:0.25 white duck:0.75 hybrid`, "This will tell the sampler to invest 25% of its effort on the tabby cat aspect of the image and 75% on the white duck aspect"
 
 ### GOTCHAs
 

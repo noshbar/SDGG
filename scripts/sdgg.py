@@ -10,6 +10,7 @@ import atexit
 import os
 import sys
 import random
+import uuid
 from PIL import Image,PngImagePlugin
 from numpy import asarray, arange
 sys.path.append('.')
@@ -18,7 +19,7 @@ from ldm_old.simplet2i import T2I
 # hack hack la la hack
 arg_parser = argparse.ArgumentParser(description='Stable Diffusion Gradio GUI')
 arg_parser.add_argument('-df', '--downsampling_factor', dest='downsampling_factor', type=int, help='BUGGY! for less VRAM usage, lower quality, faster generation, try 9 as a value', default=8)
-arg_parser.add_argument('-s', '--sampler', dest='sampler', type=str, help='which sampler to use (klms/plms)', default='klms')
+arg_parser.add_argument('-s', '--sampler', dest='sampler', type=str, help='which sampler to use (klms/plms)', default='plms')
 arg_parser.add_argument('-p', '--parallel', dest='PARALLEL', type=bool, help='generate the entire batch at once, slightly quicker, uses more VRAM', default=False)
 arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='with -p, how many images to generate if you''re having VRAM issues (1..3)', default=3)
 arg_parser.add_argument('-of', '--output_folder', dest='OUTPUT_FOLDER', type=str, help='the sub-folder within ./outputs to store generated images and the prompt database', default='sdgg')
@@ -107,7 +108,6 @@ def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
     # try find if the image was already generated
     prompt = prompt.lower()
     try:
-        # store the hash
         cursor = DATABASE.cursor()
         cursor.execute("SELECT rowid FROM prompt WHERE description=?", [prompt])
         result = cursor.fetchone()
@@ -116,10 +116,8 @@ def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
             cursor.execute("INSERT INTO prompt(description) VALUES(?)", [prompt])
             DATABASE.commit()
             prompt_id = cursor.lastrowid
-            prompt_existed = False
         else:
             prompt_id = result[0]
-            prompt_existed = True
 
         # store the settings here
         cursor = DATABASE.cursor()
@@ -132,38 +130,25 @@ def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
             row = cursor.fetchone();
             DATABASE.commit()
             settings_id = row[0]
-            settings_existed = False
         else:
             settings_id = result[0]
-            settings_existed = True
 
-        # retrieve existing images, or generate new ones here. if doing image to image, no way to know if the source changed right now, so always regenerate
-        image_existed = False
-        if (init_image_filename is None) and settings_existed and prompt_existed:
+        # generate the images
+        if init_image_filename:
+            results = GENERATOR.prompt2image(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, cfg_scale=cfg_scale, init_img=init_image_filename, batch_size=IMAGE_COUNT, iterations=ITERATIONS)
+        else:
+            results = GENERATOR.prompt2image(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale, batch_size=IMAGE_COUNT, iterations=ITERATIONS)
+        for index, result in enumerate(results):
+            filename = os.path.join(OUTDIR, str(uuid.uuid4()) + ".png")
+            result[0].save(filename)
+            images[index] = asarray(result[0])
+            seeds[index] = result[1]
             cursor = DATABASE.cursor()
-            cursor.execute("SELECT filename FROM image WHERE prompt_id=? AND settings_id=? AND seed=?", [prompt_id, settings_id, seed])
-            rows = cursor.fetchmany(SHOW_COUNT)
-            if rows:
-                print(f"Prompt already run, returning existing images if possible\n")
-                image_existed = True
-                for index, row in enumerate(rows):
-                    images[index] = asarray(Image.open(row[0]))
-                    seeds[index] = seed
-        # if we couldn't get 3 images, just regenerate
-        if not image_existed:
-            if init_image_filename:
-                results = GENERATOR.img2img(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale, init_img=init_image_filename)
-            else:
-                results = GENERATOR.txt2img(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale)
-            for index, result in enumerate(results):
-                images[index] = asarray(Image.open(result[0]))
-                seeds[index] = result[1]
-                cursor = DATABASE.cursor()
-                cursor.execute("INSERT INTO image(filename, prompt_id, settings_id, seed) values(?, ?, ?, ?)", [result[0], prompt_id, settings_id, result[1]])
-                cursor.execute("SELECT last_insert_rowid();")
-                row = cursor.fetchone();
-                ids[index] = row[0]
-                DATABASE.commit()
+            cursor.execute("INSERT INTO image(filename, prompt_id, settings_id, seed) values(?, ?, ?, ?)", [filename, prompt_id, settings_id, result[1]])
+            cursor.execute("SELECT last_insert_rowid();")
+            row = cursor.fetchone();
+            ids[index] = row[0]
+            DATABASE.commit()
     except lite.Error as e:
         message = 'Database exception: ' + e.args[0]
                 
@@ -706,7 +691,6 @@ def main():
                     height=512,
                     batch_size=IMAGE_COUNT,
                     iterations=ITERATIONS,
-                    outdir=OUTDIR,
                     sampler_name=SAMPLER,
                     weights=WEIGHTS,
                     full_precision=True,
