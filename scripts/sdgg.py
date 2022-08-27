@@ -381,9 +381,15 @@ def create_generation_tab(title, with_image_input, session):
             with gr.Column():
                 with gr.Row():
                     with gr.Column():
-                        local_width = gr.Dropdown(label="Width", value=session["width"], choices=[256,320,384,448,512,576,640,704,768,832,896,960,1024], interactive=not with_image_input)
+                        if with_image_input:
+                            local_width = gr.Textbox(label="Width", value=session["width"], interactive=False)
+                        else:
+                            local_width = gr.Dropdown(label="Width", value=session["width"], choices=[256,320,384,448,512,576,640,704,768,832,896,960,1024], interactive=True)
                     with gr.Column():
-                        local_height = gr.Dropdown(label="Height", value=session["height"], choices=[256,320,384,448,512,576,640,704,768,832,896,960,1024], interactive=not with_image_input)
+                        if with_image_input:
+                            local_height = gr.Textbox(label="Height", value=session["height"], interactive=False)
+                        else:
+                            local_height = gr.Dropdown(label="Height", value=session["height"], choices=[256,320,384,448,512,576,640,704,768,832,896,960,1024], interactive=True)
             if not with_image_input:
                 with gr.Column():
                     with gr.Row():
@@ -397,19 +403,34 @@ def create_generation_tab(title, with_image_input, session):
         with gr.Row():
             with gr.Column():
                 local_output1 = gr.Image(label="Generated image", interactive=False)
-                local_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                with gr.Row():
+                    with gr.Column():
+                        local_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                    with gr.Column():
+                        make_current1 = gr.Button(value="Make current seed")
+                        make_current1.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed1], outputs=local_seed)
                 use_btn1 = gr.Button(value="Use for image-to-image generation", visible=False)
                 remove_btn1 = gr.Button(value="Remove forever", visible=False)
                 remove_btn1.click(fn=remove_image_forever, inputs=remove_btn1, outputs=[local_output1, use_btn1, remove_btn1])
             with gr.Column():
                 local_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1, interactive=False)
-                local_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=True)
+                with gr.Row():
+                    with gr.Column():
+                        local_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                    with gr.Column():
+                        make_current2 = gr.Button(value="Make current seed")
+                        make_current2.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed2], outputs=local_seed)
                 use_btn2 = gr.Button(value="Use for image-to-image generation", visible=False)
                 remove_btn2 = gr.Button(value="Remove forever", visible=False)
                 remove_btn2.click(fn=remove_image_forever, inputs=remove_btn2, outputs=[local_output2, use_btn2, remove_btn2])
             with gr.Column():
                 local_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2, interactive=False)
-                local_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False, visible=True)
+                with gr.Row():
+                    with gr.Column():
+                        local_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                    with gr.Column():
+                        make_current3 = gr.Button(value="Make current seed")
+                        make_current3.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed3], outputs=local_seed)
                 use_btn3 = gr.Button(value="Use for image-to-image generation", visible=False)
                 remove_btn3 = gr.Button(value="Remove forever", visible=False)
                 remove_btn3.click(fn=remove_image_forever, inputs=remove_btn3, outputs=[local_output3, use_btn3, remove_btn3])
