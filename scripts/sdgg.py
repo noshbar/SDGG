@@ -396,9 +396,9 @@ def create_generation_tab(title, with_image_input, session):
             with gr.Column():
                 with gr.Row():
                     with gr.Column():
-                        local_width = gr.Number(label="Width (must be multiple of 64)", value=session["width"], precision=0, interactive=not with_image_input)
+                        local_width = gr.Dropdown(label="Width", value=session["width"], choices=[256,320,384,448,512,576,640,704,768,832,896,960,1024], interactive=not with_image_input)
                     with gr.Column():
-                        local_height = gr.Number(label="Height (must be multiple of 64)", value=session["height"], precision=0, interactive=not with_image_input)
+                        local_height = gr.Dropdown(label="Height", value=session["height"], choices=[256,320,384,448,512,576,640,704,768,832,896,960,1024], interactive=not with_image_input)
             if not with_image_input:
                 with gr.Column():
                     with gr.Row():
