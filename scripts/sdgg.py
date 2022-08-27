@@ -499,16 +499,7 @@ def create_image_history_tab(outputs):
             return result_
             
             
-        def update_image_history(start_, filter_mode_, filter_text_, offset_):
-            global DATABASE
-            if 'oldest' in offset_:
-                start_ = 0
-            if 'most recent' in offset_:
-                cursor_ = DATABASE.cursor()
-                cursor_.execute("SELECT id FROM image ORDER BY id DESC LIMIT 25")
-                row_ = cursor_.fetchall()
-                start_ = row_[0][0]
-                
+        def update_image_history(start_, filter_mode_, filter_text_):
             result_ = []
             history_, next_start_, more_ = get_images_history(start_, 25, filter_mode_, filter_text_)
             if more_:
@@ -568,7 +559,7 @@ def create_image_history_tab(outputs):
             page_numbers_ = arange(1, len(page_ids_)+1).tolist()
             # would be really nice to be able to early out here, but got a whoooole lotta UI's updates to honour
             
-            result_ = update_image_history(0, filter_mode_, filter_text_, '')
+            result_ = update_image_history(0, filter_mode_, filter_text_)
             result_.append(page_ids_)
             
             if len(page_numbers_):
@@ -596,7 +587,7 @@ def create_image_history_tab(outputs):
                 id_ = page_ids_[page_number_-1] # page numbers are 1..N, arrays are 0..N-1
             else:
                 id_ = 0
-            return update_image_history(id_, filter_mode_, filter_text_, '')
+            return update_image_history(id_, filter_mode_, filter_text_)
 
         def next_page(filter_mode_, filter_text_, current_page_, page_ids_):
             if current_page_ == len(page_ids_):
@@ -604,12 +595,12 @@ def create_image_history_tab(outputs):
             else:
                 new_page_ = current_page_ + 1
             id_ = page_ids_[new_page_ - 1]
-            result_ = update_image_history(id_, filter_mode_, filter_text_, '')
+            result_ = update_image_history(id_, filter_mode_, filter_text_)
             result_.append(new_page_)
             return result_
 
-        def most_recent(filter_mode_, filter_text_, offset_, pages_):
-            result_ = update_image_history(pages_[-1], filter_mode_, filter_text_, '')
+        def most_recent(filter_mode_, filter_text_, pages_):
+            result_ = update_image_history(pages_[-1], filter_mode_, filter_text_)
             result_.append(len(pages_))
             return result_
             
@@ -661,7 +652,7 @@ def create_image_history_tab(outputs):
         next_outputs = ima_outputs + [ima_pages]
         ima_fetch1.click(fn=next_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=next_outputs)
         ima_fetch2.click(fn=next_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=next_outputs)    
-        ima_end.click(fn=most_recent, inputs=[ima_filter_mode, ima_filter_text_variable, ima_end, ima_page_map], outputs=ima_outputs + [ima_pages])
+        ima_end.click(fn=most_recent, inputs=[ima_filter_mode, ima_filter_text_variable, ima_page_map], outputs=ima_outputs + [ima_pages])
         ima_gotopage.click(fn=goto_page, inputs=[ima_filter_mode, ima_filter_text_variable, ima_pages, ima_page_map], outputs=ima_outputs)
         ima_moar = ima_outputs + [ima_page_map, ima_pages, ima_pagecount_text, ima_gotopage, ima_end, ima_filter_text_variable]
         ima_apply_filter.click(fn=apply_filter, inputs=[ima_filter_mode, ima_filter_text], outputs=ima_moar)
