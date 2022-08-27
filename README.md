@@ -26,6 +26,26 @@ Running:
 2. Wait for it to load and show a message like `Running on local URL:  http://127.0.0.1:7860/`
 3. Browse to that address in your browser and start generating!
 
+### Longstart
+
+This is how I got up and running:
+1. Get the weights from https://huggingface.co/CompVis/stable-diffusion-v-1-4-original/resolve/main/sd-v1-4.ckpt
+    * requires creating a HuggingFace account
+    * requires checking their agreement checkbox
+1. Install Anaconda
+1. Clone [the official Stable Diffusion repo](https://github.com/CompVis/stable-diffusion)
+1. `cd stable-diffusion`
+1. Copying the weights to `models/ldm/stable-diffusion-v1/model.ckpt` (creating the folder if necessary)
+1. `conda env create -f environment.yaml`
+1. `conda activate ldm`
+1. Testing if it's all working with `python scripts/txt2img.py --prompt "a photograph of an astronaut riding a horse" --plms` (it will download additional stuff)
+1. Clone this repo
+1. Copy all the files to the `stable-diffusion` folder
+1. `pip install gradio`
+1. `pip install -e git+https://github.com/lstein/k-diffusion.git@master#egg=k-diffusion`
+1. Run `python scripts\sdgg.py`
+1. Wait for the URL to browse to, and start using it!
+
 ### Features
 
 * text to image
