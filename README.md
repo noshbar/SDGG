@@ -35,10 +35,10 @@ This is how I got up and running:
 1. Install Anaconda
 1. Clone [the official Stable Diffusion repo](https://github.com/CompVis/stable-diffusion)
 1. `cd stable-diffusion`
-1. Copying the weights to `models/ldm/stable-diffusion-v1/model.ckpt` (creating the folder if necessary)
+1. Copy the weights to `models/ldm/stable-diffusion-v1/model.ckpt` (creating the folder if necessary)
 1. `conda env create -f environment.yaml`
 1. `conda activate ldm`
-1. Testing if it's all working with `python scripts/txt2img.py --prompt "a photograph of an astronaut riding a horse" --plms` (it will download additional stuff)
+1. Test if it's all working with `python scripts/txt2img.py --prompt "a photograph of an astronaut riding a horse" --plms` (it will download additional stuff)
 1. Clone this repo
 1. Copy all the files to the `stable-diffusion` folder
 1. `pip install gradio`
@@ -55,6 +55,7 @@ This is how I got up and running:
 * saves your session details so if the server restarts and you refresh your page, you'll get where you last left off
 * tries to prevent generating the same images again, if they're found, they'll be returned immediately from the outputs folder
 * provides rudimentary browsing of generated images, allowing you to copy settings used for generating
+* using the `-of <category>` parameter, you can store results in different folders, e.g., one for "animals", one for "fantasy", one for "taxes", whatever, to prevent things getting too unwieldly
 
 ### GOTCHAs
 
