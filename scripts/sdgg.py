@@ -644,7 +644,7 @@ def create_image_history_tab(outputs):
                             selected_ = 1
                         ima_pages = gr.Dropdown(show_label=False, choices=choices_, value=selected_, interactive=True)
                     with gr.Column():
-                        ima_pagecount_text = gr.Text(value="of " + str(selected_-1), show_label=False, interactive=False)
+                        ima_pagecount_text = gr.Text(value="of " + str(len(choices_)-1), show_label=False, interactive=False)
             with gr.Column():
                 ima_fetch1 = gr.Button(value='Next page', variant='primary', visible=False)
             with gr.Column():
