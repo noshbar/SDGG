@@ -606,7 +606,11 @@ def create_image_history_tab(outputs):
             return result_
 
         def most_recent(filter_mode_, filter_text_, pages_):
-            result_ = update_image_history(pages_[-1], filter_mode_, filter_text_)
+            if pages_:
+                index_ = pages_[-1]
+            else:
+                index_ = 0
+            result_ = update_image_history(index_, filter_mode_, filter_text_)
             result_.append(len(pages_))
             return result_
             
