@@ -51,24 +51,24 @@ This is how I got up and running:
 1. Run `python scripts\sdgg.py`
 1. Wait for the URL to browse to, and start using it!
 
-To enable face enhancement, you need to setup GFPGAN.  
-If it's already installed in your Stable Diffusion folder, it'll likely just work.  
+**Enabling face enhancement**  
+You need to setup GFPGAN. If it's already installed in your Stable Diffusion folder, it'll likely just work.  
 If it's installed elsewhere, then check out the `-gs` and `-gm` parameters to point to another location.  
 Otherwise...
-* `pip install basicsr`
-* `pip install facexlib`
-* get the model
+1. `pip install basicsr`
+1. `pip install facexlib`
+1. get the model
     * downloaded from [here](https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth)
     * move it to `./models/gfpgan/`
         * (however, other repos use `./src/gfpgan/experiments/pretrained_models/GFPGANv1.3.pth`, this will work, too)
-* get the source
+1. get the source
     * clone the repo https://github.com/TencentARC/GFPGAN
     * copy the `gfpgan` from within it to the root of the stable diffusion folder
         * (however, other repos use `./src`, this will work, too) 
-* so in the end, you should have something like:
+1. so in the end, you should have something like:
     * `stable-diffusion/models/gfpgan/GFPGANv1.3.pth`, and
     * `stable-diffusion/gfpgan/` with files like `utils.py`, `train.py`, and a few folders in
-* refresh the UI and you should have buttons to enhance some o' them faces!        
+1. refresh the UI and you should have buttons to enhance some o' them faces!        
         
 ### Features
 
