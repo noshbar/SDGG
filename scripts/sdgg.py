@@ -142,18 +142,24 @@ def get_image_id(filename, prompt_id, settings_id, seed):
     return row[0]
                 
 # preview hack start ================================================================================================                
-def provide_preview():
+def provide_preview(for_index):
     global PREVIEW_IMAGES
     global PREVIEW_EVENTS
     global GENERATING
-    for_index = len(PREVIEW_IMAGES)
     si = str(for_index)
+    delete_buttons  = [gr.update(variant='secondary'), gr.update(variant='secondary'), gr.update(variant='secondary')]
+    enhance_buttons = [gr.update(variant='secondary'), gr.update(variant='secondary'), gr.update(variant='secondary')]
     if not GENERATING: # do some nops
-        return [gr.update(interactive=False), gr.update(interactive=False), gr.update(variant='secondary'), gr.update(variant='secondary')]
+        return [gr.update(interactive=False), gr.update(interactive=False), gr.update(variant='secondary')] + delete_buttons + enhance_buttons
     while not PREVIEW_EVENTS[for_index].isSet():
         PREVIEW_EVENTS[for_index].wait(1)
-    value = "Delete forever ["+str(PREVIEW_IMAGES[for_index]['id'])+"]"
-    return [PREVIEW_IMAGES[for_index]['filename'], PREVIEW_IMAGES[for_index]['seed'], gr.update(visible=True), gr.update(visible=True, value=value)]
+    visible = (for_index+1 == SHOW_COUNT)
+    for i in range(for_index+1):
+        value = "Delete forever ["+str(PREVIEW_IMAGES[i]['id'])+"]"
+        delete_buttons[i] = gr.update(visible=visible, value=value)
+    if visible:
+        enhance_buttons = [gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)]
+    return [PREVIEW_IMAGES[for_index]['filename'], PREVIEW_IMAGES[for_index]['seed'], gr.update(visible=True)] + delete_buttons + enhance_buttons
         
 def handle_preview(image, seed):
     global OUTDIR
@@ -208,7 +214,9 @@ def generate_with_preview(init_image_filename, prompt, seed, steps, width, heigh
     thread = threading.Thread(target=generation_thread, args=(init_image_filename, prompt, seed, steps, width, height, cfg_scale,))        
     thread.start()
                 
-    return "Please wait until all 3 are generated... [hack#: " + str(uuid.uuid4()) + "]"
+    # update the message label with a unique message to trigger `change`, and hide the 3 delete buttons and enhance buttons
+    buttons = [gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)]
+    return ["Please wait until all 3 are generated... [hack#: " + str(uuid.uuid4()) + "]"] + buttons
 # preview hack end ================================================================================================                
         
         
@@ -559,10 +567,13 @@ def create_generation_tab(title, with_image_input, session):
                 remove_btn3.click(fn=remove_image_forever, inputs=remove_btn3, outputs=[local_output3, use_btn3, remove_btn3])
         message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
         if PREVIEW:
-            message.change(fn=provide_preview, inputs=None, outputs=[local_output1, local_seed1, use_btn1, remove_btn1])
-            local_output1.change(fn=provide_preview, inputs=None, outputs=[local_output2, local_seed2, use_btn2, remove_btn2])
-            local_output2.change(fn=provide_preview, inputs=None, outputs=[local_output3, local_seed3, use_btn3, remove_btn3])
-            outputs_ = [message]
+            first  = gr.Variable(value=0)
+            second = gr.Variable(value=1)
+            third  = gr.Variable(value=2)
+            message.change(fn=provide_preview, inputs=first, outputs=[local_output1, local_seed1, use_btn1, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3])
+            local_output1.change(fn=provide_preview, inputs=second, outputs=[local_output2, local_seed2, use_btn2, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3])
+            local_output2.change(fn=provide_preview, inputs=third, outputs=[local_output3, local_seed3, use_btn3, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3])
+            outputs_ = [message, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3]
         else:
             outputs_ = [local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message]
             outputs_ += [use_btn1, use_btn2, use_btn3, remove_btn1, remove_btn2, remove_btn3]
@@ -833,7 +844,7 @@ def try_init_gfpgan():
             try:
                 from gfpgan import GFPGANer
                 GFPGAN = GFPGANer(model_path=model_path, upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
-                print('Using GFPGAN.\n\n *** NOTE: Any enhancements you make are NOT saved to disk, if you like the changes, right click and save the image.')
+                print('Using GFPGAN.\n\n *** NOTE: Any face enhancements you make are NOT saved to disk, if you like the changes, right click and save the image.')
                 print('If you want to reapply the enhancements in future, browse the image history and reuse the image, which lets you enhance it from the T2I or I2I tabs.\n')
                 return
             except ImportError as e:
