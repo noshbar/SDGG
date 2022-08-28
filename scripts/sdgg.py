@@ -91,6 +91,52 @@ def change_database(db_filename):
             
     return [False, 'Unknown error changing database: ' + db_filename]
                 
+                
+def get_prompt_and_settings_id(init_image_filename, prompt, seed, steps, width, height, cfg_scale):
+    global DATABASE
+    global OUTDIR
+    global GENERATOR
+    
+    # try find if the image was already generated
+    prompt = prompt.lower()
+    try:
+        cursor = DATABASE.cursor()
+        cursor.execute("SELECT rowid FROM prompt WHERE description=?", [prompt])
+        result = cursor.fetchone()
+        if result is None:
+            cursor = DATABASE.cursor()
+            cursor.execute("INSERT INTO prompt(description) VALUES(?)", [prompt])
+            DATABASE.commit()
+            prompt_id = cursor.lastrowid
+        else:
+            prompt_id = result[0]
+
+        # store the settings here
+        cursor = DATABASE.cursor()
+        cursor.execute("SELECT id FROM settings WHERE width=? AND height=? AND steps=? AND cfg_scale=?", [width, height, steps, cfg_scale])
+        result = cursor.fetchone()
+        if result is None:
+            cursor = DATABASE.cursor()
+            cursor.execute("INSERT INTO settings(width, height, steps, cfg_scale) VALUES(?, ?, ?, ?)", [width, height, steps, cfg_scale])
+            cursor.execute("SELECT last_insert_rowid();")
+            row = cursor.fetchone();
+            DATABASE.commit()
+            settings_id = row[0]
+        else:
+            settings_id = result[0]
+    except lite.Error as e:
+        message = 'Database exception: ' + e.args[0]
+    return prompt_id, settings_id        
+                
+def get_image_id(filename, prompt_id, settings_id, seed):
+    global DATABASE
+    cursor = DATABASE.cursor()
+    cursor.execute("INSERT INTO image(filename, prompt_id, settings_id, seed) values(?, ?, ?, ?)", [filename, prompt_id, settings_id, seed])
+    cursor.execute("SELECT last_insert_rowid();")
+    row = cursor.fetchone();
+    DATABASE.commit()
+    return row[0]
+                
 # preview hack start ================================================================================================                
 def provide_preview():
     global PREVIEW_IMAGES
@@ -106,7 +152,6 @@ def provide_preview():
     return [PREVIEW_IMAGES[for_index]['filename'], PREVIEW_IMAGES[for_index]['seed'], gr.update(visible=True), gr.update(visible=True, value=value)]
         
 def handle_preview(image, seed):
-    global DATABASE
     global OUTDIR
     global PREVIEW_IMAGES
     global PREVIEW_EVENTS
@@ -116,15 +161,7 @@ def handle_preview(image, seed):
     image.save(filename)
     
     index = len(PREVIEW_IMAGES)
-    try:
-        cursor = DATABASE.cursor()
-        cursor.execute("INSERT INTO image(filename, prompt_id, settings_id, seed) values(?, ?, ?, ?)", [filename, GENERATING['prompt_id'], GENERATING['settings_id'], seed])
-        cursor.execute("SELECT last_insert_rowid();")
-        row = cursor.fetchone();
-        id = row[0]
-        DATABASE.commit()
-    except lite.Error as e:
-        message = 'Database exception: ' + e.args[0]
+    id = get_image_id(filename, GENERATING['prompt_id'], GENERATING['settings_id'], seed)
     PREVIEW_IMAGES.append({'filename':filename, 'seed':seed, 'id':id})
     PREVIEW_EVENTS[index].set()
      
@@ -142,7 +179,6 @@ def generation_thread(init_image_filename, prompt, seed, steps, width, height, c
     GENERATING = None
         
 def generate_with_preview(init_image_filename, prompt, seed, steps, width, height, cfg_scale):
-    global DATABASE
     global OUTDIR
     global GENERATOR
     global PREVIEW
@@ -160,47 +196,19 @@ def generate_with_preview(init_image_filename, prompt, seed, steps, width, heigh
     if not init_image_filename:
         save_t2i_session_settings(prompt, seed, steps, cfg_scale, width, height)
 
-    # try find if the image was already generated
     prompt = prompt.lower()
-    try:
-        cursor = DATABASE.cursor()
-        cursor.execute("SELECT rowid FROM prompt WHERE description=?", [prompt])
-        result = cursor.fetchone()
-        if result is None:
-            cursor = DATABASE.cursor()
-            cursor.execute("INSERT INTO prompt(description) VALUES(?)", [prompt])
-            DATABASE.commit()
-            prompt_id = cursor.lastrowid
-        else:
-            prompt_id = result[0]
-
-        # store the settings here
-        cursor = DATABASE.cursor()
-        cursor.execute("SELECT id FROM settings WHERE width=? AND height=? AND steps=? AND cfg_scale=?", [width, height, steps, cfg_scale])
-        result = cursor.fetchone()
-        if result is None:
-            cursor = DATABASE.cursor()
-            cursor.execute("INSERT INTO settings(width, height, steps, cfg_scale) VALUES(?, ?, ?, ?)", [width, height, steps, cfg_scale])
-            cursor.execute("SELECT last_insert_rowid();")
-            row = cursor.fetchone();
-            DATABASE.commit()
-            settings_id = row[0]
-        else:
-            settings_id = result[0]
-
-        # start the image generation thread
-        GENERATING = { 'prompt_id':prompt_id, 'settings_id':settings_id }
-        thread = threading.Thread(target=generation_thread, args=(init_image_filename, prompt, seed, steps, width, height, cfg_scale,))        
-        thread.start()
-    except lite.Error as e:
-        message = 'Database exception: ' + e.args[0]
+    prompt_id, settings_id = get_prompt_and_settings_id(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
+        
+    # start the image generation thread
+    GENERATING = { 'prompt_id':prompt_id, 'settings_id':settings_id }
+    thread = threading.Thread(target=generation_thread, args=(init_image_filename, prompt, seed, steps, width, height, cfg_scale,))        
+    thread.start()
                 
     return "Please wait until all 3 are generated... [hack#: " + str(uuid.uuid4()) + "]"
 # preview hack end ================================================================================================                
         
         
 def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale):
-    global DATABASE
     global OUTDIR
     global GENERATOR
     
@@ -216,52 +224,19 @@ def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
     if not init_image_filename:
         save_t2i_session_settings(prompt, seed, steps, cfg_scale, width, height)
 
-    # try find if the image was already generated
     prompt = prompt.lower()
-    try:
-        cursor = DATABASE.cursor()
-        cursor.execute("SELECT rowid FROM prompt WHERE description=?", [prompt])
-        result = cursor.fetchone()
-        if result is None:
-            cursor = DATABASE.cursor()
-            cursor.execute("INSERT INTO prompt(description) VALUES(?)", [prompt])
-            DATABASE.commit()
-            prompt_id = cursor.lastrowid
-        else:
-            prompt_id = result[0]
-
-        # store the settings here
-        cursor = DATABASE.cursor()
-        cursor.execute("SELECT id FROM settings WHERE width=? AND height=? AND steps=? AND cfg_scale=?", [width, height, steps, cfg_scale])
-        result = cursor.fetchone()
-        if result is None:
-            cursor = DATABASE.cursor()
-            cursor.execute("INSERT INTO settings(width, height, steps, cfg_scale) VALUES(?, ?, ?, ?)", [width, height, steps, cfg_scale])
-            cursor.execute("SELECT last_insert_rowid();")
-            row = cursor.fetchone();
-            DATABASE.commit()
-            settings_id = row[0]
-        else:
-            settings_id = result[0]
-
-        # generate the images
-        if init_image_filename:
-            results = GENERATOR.prompt2image(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, cfg_scale=cfg_scale, init_img=init_image_filename, batch_size=IMAGE_COUNT, iterations=ITERATIONS)
-        else:
-            results = GENERATOR.prompt2image(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale, batch_size=IMAGE_COUNT, iterations=ITERATIONS)
-        for index, result in enumerate(results):
-            filename = os.path.join(OUTDIR, str(uuid.uuid4()) + ".png")
-            result[0].save(filename)
-            images[index] = asarray(result[0])
-            seeds[index] = result[1]
-            cursor = DATABASE.cursor()
-            cursor.execute("INSERT INTO image(filename, prompt_id, settings_id, seed) values(?, ?, ?, ?)", [filename, prompt_id, settings_id, result[1]])
-            cursor.execute("SELECT last_insert_rowid();")
-            row = cursor.fetchone();
-            ids[index] = row[0]
-            DATABASE.commit()
-    except lite.Error as e:
-        message = 'Database exception: ' + e.args[0]
+    prompt_id, settings_id = get_prompt_and_settings_id(init_image_filename, prompt, seed, steps, width, height, cfg_scale)
+    # generate the images
+    if init_image_filename:
+        results = GENERATOR.prompt2image(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, cfg_scale=cfg_scale, init_img=init_image_filename, batch_size=IMAGE_COUNT, iterations=ITERATIONS)
+    else:
+        results = GENERATOR.prompt2image(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale, batch_size=IMAGE_COUNT, iterations=ITERATIONS)
+    for index, result in enumerate(results):
+        filename = os.path.join(OUTDIR, str(uuid.uuid4()) + ".png")
+        result[0].save(filename)
+        images[index] = asarray(result[0])
+        seeds[index] = result[1]
+        ids[index] = get_image_id(filename, prompt_id, settings_id, seed)
                 
     results = [images[0], images[1], images[2], seeds[0], seeds[1], seeds[2], message, gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)]
     for index in range(3):
