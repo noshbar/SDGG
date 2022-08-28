@@ -26,9 +26,9 @@ Running:
 3. Browse to that address in your browser and start generating!
 
 Main user options:
-* '--help' to show all options
+* `--help` to show all options
 * `-of <category>` lets you choose the subfolder within `outputs`, grouping them by category, e.g., one for "animals", one for "fantasy", one for "taxes", whatever, to prevent things getting too unwieldly
-* '-ip true' will show images as they're ready, not wait until all 3 are done. *CAUTION*: this is a complete hack, abusing Gradio, so use with discretion
+* `-ip true` will show images as they're ready, not wait until all 3 are done. *CAUTION*: this is a complete hack, abusing Gradio, so use with discretion
 
 ### Longstart
 
