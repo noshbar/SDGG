@@ -22,9 +22,13 @@ Setup:
 
 Running:
 1. Run `python scripts\sdgg.py`
-    * optionally pass `-p true` to generate images in parallel (slight time saving, more VRAM usage)
 2. Wait for it to load and show a message like `Running on local URL:  http://127.0.0.1:7860/`
 3. Browse to that address in your browser and start generating!
+
+Main user options:
+* '--help' to show all options
+* `-of <category>` lets you choose the subfolder within `outputs`, grouping them by category, e.g., one for "animals", one for "fantasy", one for "taxes", whatever, to prevent things getting too unwieldly
+* '-ip true' will show images as they're ready, not wait until all 3 are done. *CAUTION*: this is a complete hack, abusing Gradio, so use with discretion
 
 ### Longstart
 
@@ -55,7 +59,6 @@ This is how I got up and running:
 * saves your session details so if the server restarts and you refresh your page, you'll get where you last left off
 * tries to prevent generating the same images again, if they're found, they'll be returned immediately from the outputs folder
 * provides rudimentary browsing of generated images, allowing you to copy settings used for generating
-* using the `-of <category>` parameter, you can store results in different folders, e.g., one for "animals", one for "fantasy", one for "taxes", whatever, to prevent things getting too unwieldly
 * weighted prompts
     * the example from the [lstein fork](https://github.com/lstein/stable-diffusion) is: `tabby cat:0.25 white duck:0.75 hybrid`, "This will tell the sampler to invest 25% of its effort on the tabby cat aspect of the image and 75% on the white duck aspect"
 

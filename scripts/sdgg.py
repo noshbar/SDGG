@@ -11,6 +11,7 @@ import os
 import sys
 import random
 import uuid
+import threading
 from PIL import Image,PngImagePlugin
 from numpy import asarray, arange
 sys.path.append('.')
@@ -23,6 +24,7 @@ arg_parser.add_argument('-s', '--sampler', dest='sampler', type=str, help='which
 arg_parser.add_argument('-p', '--parallel', dest='PARALLEL', type=bool, help='generate the entire batch at once, slightly quicker, uses more VRAM', default=False)
 arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='with -p, how many images to generate if you''re having VRAM issues (1..3)', default=3)
 arg_parser.add_argument('-of', '--output_folder', dest='OUTPUT_FOLDER', type=str, help='the sub-folder within ./outputs to store generated images and the prompt database', default='sdgg')
+arg_parser.add_argument('-ip', '--instant_preview', dest='INSTANT_PREVIEW', type=str, help='enable a hack for instant previewing of generated pictures, 1-by-1', default=False)
 arg_parser.add_argument('-Z', '--debug', dest='DEBUG', type=str, help='Disable loading of ML stuff to debug Gradio stuff quicker', default=False)
 args = arg_parser.parse_args()
 
@@ -47,7 +49,11 @@ else:
     
 DATABASE = None
 
-   
+# and now the hacks for instant previews during generation, 1-by-1, not at all 3 at once
+PREVIEW        = args.INSTANT_PREVIEW   
+PREVIEW_IMAGES = []
+PREVIEW_EVENTS = []
+GENERATING     = None # going to react to image.change later, but deleting causes changes too
     
 def change_database(db_filename):
     global DATABASE
@@ -85,14 +91,119 @@ def change_database(db_filename):
             
     return [False, 'Unknown error changing database: ' + db_filename]
                 
+# preview hack start ================================================================================================                
+def provide_preview():
+    global PREVIEW_IMAGES
+    global PREVIEW_EVENTS
+    global GENERATING
+    for_index = len(PREVIEW_IMAGES)
+    si = str(for_index)
+    if not GENERATING: # do some nops
+        return [gr.update(interactive=False), gr.update(interactive=False), gr.update(variant='secondary'), gr.update(variant='secondary')]
+    while not PREVIEW_EVENTS[for_index].isSet():
+        PREVIEW_EVENTS[for_index].wait(1)
+    value = "Delete forever ["+str(PREVIEW_IMAGES[for_index]['id'])+"]"
+    return [PREVIEW_IMAGES[for_index]['filename'], PREVIEW_IMAGES[for_index]['seed'], gr.update(visible=True), gr.update(visible=True, value=value)]
         
+def handle_preview(image, seed):
+    global DATABASE
+    global OUTDIR
+    global PREVIEW_IMAGES
+    global PREVIEW_EVENTS
+    global GENERATING
+
+    filename = os.path.join(OUTDIR, str(uuid.uuid4()) + ".png")
+    image.save(filename)
+    
+    index = len(PREVIEW_IMAGES)
+    try:
+        cursor = DATABASE.cursor()
+        cursor.execute("INSERT INTO image(filename, prompt_id, settings_id, seed) values(?, ?, ?, ?)", [filename, GENERATING['prompt_id'], GENERATING['settings_id'], seed])
+        cursor.execute("SELECT last_insert_rowid();")
+        row = cursor.fetchone();
+        id = row[0]
+        DATABASE.commit()
+    except lite.Error as e:
+        message = 'Database exception: ' + e.args[0]
+    PREVIEW_IMAGES.append({'filename':filename, 'seed':seed, 'id':id})
+    PREVIEW_EVENTS[index].set()
+     
+def generation_thread(init_image_filename, prompt, seed, steps, width, height, cfg_scale):   
+    global DATABASE
+    global OUTDIR
+    global GENERATOR
+    global GENERATING
+    global IMAGE_COUNT
+    global ITERATIONS
+    if init_image_filename:
+        results = GENERATOR.prompt2image(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, cfg_scale=cfg_scale, init_img=init_image_filename, batch_size=IMAGE_COUNT, iterations=ITERATIONS, image_callback=handle_preview)
+    else:
+        results = GENERATOR.prompt2image(prompt=prompt, outdir=OUTDIR, seed=seed, steps=steps, width=width, height=height, cfg_scale=cfg_scale, batch_size=IMAGE_COUNT, iterations=ITERATIONS, image_callback=handle_preview)
+    GENERATING = None
+        
+def generate_with_preview(init_image_filename, prompt, seed, steps, width, height, cfg_scale):
+    global DATABASE
+    global OUTDIR
+    global GENERATOR
+    global PREVIEW
+    global PREVIEW_IMAGES
+    global PREVIEW_EVENTS
+    global GENERATING
+
+    PREVIEW_IMAGES = []
+    PREVIEW_EVENTS = [threading.Event(), threading.Event(), threading.Event()]
+    GENERATING     = None
+   
+    if prompt.strip() == "":
+        return "Please enter a valid prompt first"
+
+    if not init_image_filename:
+        save_t2i_session_settings(prompt, seed, steps, cfg_scale, width, height)
+
+    # try find if the image was already generated
+    prompt = prompt.lower()
+    try:
+        cursor = DATABASE.cursor()
+        cursor.execute("SELECT rowid FROM prompt WHERE description=?", [prompt])
+        result = cursor.fetchone()
+        if result is None:
+            cursor = DATABASE.cursor()
+            cursor.execute("INSERT INTO prompt(description) VALUES(?)", [prompt])
+            DATABASE.commit()
+            prompt_id = cursor.lastrowid
+        else:
+            prompt_id = result[0]
+
+        # store the settings here
+        cursor = DATABASE.cursor()
+        cursor.execute("SELECT id FROM settings WHERE width=? AND height=? AND steps=? AND cfg_scale=?", [width, height, steps, cfg_scale])
+        result = cursor.fetchone()
+        if result is None:
+            cursor = DATABASE.cursor()
+            cursor.execute("INSERT INTO settings(width, height, steps, cfg_scale) VALUES(?, ?, ?, ?)", [width, height, steps, cfg_scale])
+            cursor.execute("SELECT last_insert_rowid();")
+            row = cursor.fetchone();
+            DATABASE.commit()
+            settings_id = row[0]
+        else:
+            settings_id = result[0]
+
+        # start the image generation thread
+        GENERATING = { 'prompt_id':prompt_id, 'settings_id':settings_id }
+        thread = threading.Thread(target=generation_thread, args=(init_image_filename, prompt, seed, steps, width, height, cfg_scale,))        
+        thread.start()
+    except lite.Error as e:
+        message = 'Database exception: ' + e.args[0]
+                
+    return "Please wait until all 3 are generated... [hack#: " + str(uuid.uuid4()) + "]"
+# preview hack end ================================================================================================                
         
         
 def generate(init_image_filename, prompt, seed, steps, width, height, cfg_scale):
     global DATABASE
     global OUTDIR
     global GENERATOR
-
+    
     images = [None, None, None]
     seeds = [0, 0, 0]
     ids = [0, 0, 0]
@@ -351,19 +462,29 @@ def remove_image_forever(text_id):
       
     
 def generate_t2i(prompt, seed, steps, width, height, cfg_scale):
-    return generate(None, prompt, seed, steps, width, height, cfg_scale)
+    global PREVIEW
+    if PREVIEW:
+        return generate_with_preview(None, prompt, seed, steps, width, height, cfg_scale)
+    else:
+        return generate(None, prompt, seed, steps, width, height, cfg_scale)
 
 def generate_i2i(image_numpy, prompt, seed, steps, cfg_scale):
     global OUTDIR
+    global PREVIEW
     image = Image.fromarray(image_numpy)    
     filename = OUTDIR + "/temp.png"
     image.save(filename)
     width, height = image.size
     steps = int(steps * 1.34) # no idea why, but the image to image script seems to use 74% of what you provide
     
-    return generate(filename, prompt, seed, steps, width, height, cfg_scale)
+    if PREVIEW:
+        return generate_with_preview(filename, prompt, seed, steps, width, height, cfg_scale)
+    else:
+        return generate(filename, prompt, seed, steps, width, height, cfg_scale)
     
 def create_generation_tab(title, with_image_input, session):
+    global PREVIEW
+    
     with gr.TabItem(title):
         if with_image_input:
             image = gr.Image(label="Guide/initial image (keep small with dimensions that are multiples of 64)", interactive=True)
@@ -400,6 +521,10 @@ def create_generation_tab(title, with_image_input, session):
                         with gr.Column():
                             gr.Button(value="Square").click(fn=lambda: [512, 512], inputs=None, outputs=[local_width, local_height])
         generate_btn = gr.Button("Generate", variant='primary')
+        if not PREVIEW:
+            gr.Markdown(value='(to see images *as* they are generated, you can try running this script with `-ip true`, but this *is experimental*)', show_label=False)
+        else:
+            gr.Markdown(value='**DO NOT TOUCH ANYTHING** until *ALL* images are done generating', show_label=False)
         with gr.Row():
             with gr.Column():
                 local_output1 = gr.Image(label="Generated image", interactive=False)
@@ -435,8 +560,14 @@ def create_generation_tab(title, with_image_input, session):
                 remove_btn3 = gr.Button(value="Remove forever", visible=False)
                 remove_btn3.click(fn=remove_image_forever, inputs=remove_btn3, outputs=[local_output3, use_btn3, remove_btn3])
         message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
-        outputs_ = [local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message]
-        outputs_ += [use_btn1, use_btn2, use_btn3, remove_btn1, remove_btn2, remove_btn3]
+        if PREVIEW:
+            message.change(fn=provide_preview, inputs=None, outputs=[local_output1, local_seed1, use_btn1, remove_btn1])
+            local_output1.change(fn=provide_preview, inputs=None, outputs=[local_output2, local_seed2, use_btn2, remove_btn2])
+            local_output2.change(fn=provide_preview, inputs=None, outputs=[local_output3, local_seed3, use_btn3, remove_btn3])
+            outputs_ = [message]
+        else:
+            outputs_ = [local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message]
+            outputs_ += [use_btn1, use_btn2, use_btn3, remove_btn1, remove_btn2, remove_btn3]
         if with_image_input:
             generate_btn.click(fn=generate_i2i, inputs=[image, local_prompt, local_seed, local_steps, local_cfg_scale], outputs=outputs_)
         else:
