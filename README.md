@@ -19,6 +19,7 @@ Setup:
 3. Run `pip install gradio`
     * developed against version 3.1.7
 4. Run `pip install -e git+https://github.com/lstein/k-diffusion.git@master#egg=k-diffusion`
+5. To enable face enhancement using GFPGAN, check out the "Longstart" below
 
 Running:
 1. Run `python scripts\sdgg.py`
@@ -50,10 +51,30 @@ This is how I got up and running:
 1. Run `python scripts\sdgg.py`
 1. Wait for the URL to browse to, and start using it!
 
+To enable face enhancement, you need to setup GFPGAN.  
+If it's already installed in your Stable Diffusion folder, it'll likely just work.  
+If it's installed elsewhere, then check out the `-gs` and `-gm` parameters to point to another location.  
+Otherwise...
+* `pip install basicsr`
+* `pip install facexlib`
+* get the model
+    * downloaded from [here](https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth)
+    * move it to `./models/gfpgan/`
+        * (however, other repos use `./src/gfpgan/experiments/pretrained_models/GFPGANv1.3.pth`, this will work, too)
+* get the source
+    * clone the repo https://github.com/TencentARC/GFPGAN
+    * copy the `gfpgan` from within it to the root of the stable diffusion folder
+        * (however, other repos use `./src`, this will work, too) 
+* so in the end, you should have something like:
+    * `stable-diffusion/models/gfpgan/GFPGANv1.3.pth`, and
+    * `stable-diffusion/gfpgan/` with files like `utils.py`, `train.py`, and a few folders in
+* refresh the UI and you should have buttons to enhance some o' them faces!        
+        
 ### Features
 
 * text to image
 * image to image
+* face enhancement
 * simple GUI to adjust most common generation settings
 * saves all the prompts you use to a database so you can reuse them in future (searching by keyword coming soon, maybe)
 * saves your session details so if the server restarts and you refresh your page, you'll get where you last left off

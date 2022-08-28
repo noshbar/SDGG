@@ -25,6 +25,9 @@ arg_parser.add_argument('-p', '--parallel', dest='PARALLEL', type=bool, help='ge
 arg_parser.add_argument('-bs', '--batch_size', dest='IMAGE_COUNT', type=int, help='with -p, how many images to generate if you''re having VRAM issues (1..3)', default=3)
 arg_parser.add_argument('-of', '--output_folder', dest='OUTPUT_FOLDER', type=str, help='the sub-folder within ./outputs to store generated images and the prompt database', default='sdgg')
 arg_parser.add_argument('-ip', '--instant_preview', dest='INSTANT_PREVIEW', type=str, help='enable a hack for instant previewing of generated pictures, 1-by-1', default=False)
+arg_parser.add_argument('-gs', '--gfpgan-source', dest='GFP_FOLDER', type=str, help='where to find the "gfpgan" folder', default='.') #  https://github.com/TencentARC/GFPGAN/
+arg_parser.add_argument('-gm', '--gfpgan-model', dest='GFP_MODEL_PATH', type=str, help='where to find the "GFPGANv1.3.pth" model', default='./models/gfpgan') # https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth
+arg_parser.add_argument('-gd', '--gfpgan-disable', dest='GFP_DISABLED', type=str, help='disable GFPGAN', default=False)
 arg_parser.add_argument('-Z', '--debug', dest='DEBUG', type=str, help='Disable loading of ML stuff to debug Gradio stuff quicker', default=False)
 args = arg_parser.parse_args()
 
@@ -47,6 +50,7 @@ else:
     ITERATIONS = IMAGE_COUNT
     IMAGE_COUNT = 1
     
+GFPGAN = None    
 DATABASE = None
 
 # and now the hacks for instant previews during generation, 1-by-1, not at all 3 at once
@@ -457,12 +461,22 @@ def generate_i2i(image_numpy, prompt, seed, steps, cfg_scale):
     else:
         return generate(filename, prompt, seed, steps, width, height, cfg_scale)
     
+def gfpgan_image(image):
+    if image is None:
+        return None
+    _, _, restored_img = GFPGAN.enhance(image[:,:,::-1], has_aligned=False, only_center_face=False, paste_back=True)
+    return restored_img[:,:,::-1]
+                    
 def create_generation_tab(title, with_image_input, session):
     global PREVIEW
+    global GFPGAN
     
     with gr.TabItem(title):
         if with_image_input:
             image = gr.Image(label="Guide/initial image (keep small with dimensions that are multiples of 64)", interactive=True)
+            if GFPGAN:
+                gfpgan_source_btn = gr.Button(value="Enhance face")
+                gfpgan_source_btn.click(fn=gfpgan_image, inputs=image, outputs=image)
         else:
             image = None
             
@@ -510,6 +524,9 @@ def create_generation_tab(title, with_image_input, session):
                         make_current1 = gr.Button(value="Make current seed")
                         make_current1.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed1], outputs=local_seed)
                 use_btn1 = gr.Button(value="Use for image-to-image generation", visible=False)
+                if GFPGAN:
+                    gfpgan_btn1 = gr.Button(value="Enhance face", visible=True)
+                    gfpgan_btn1.click(fn=gfpgan_image, inputs=local_output1, outputs=local_output1)
                 remove_btn1 = gr.Button(value="Remove forever", visible=False)
                 remove_btn1.click(fn=remove_image_forever, inputs=remove_btn1, outputs=[local_output1, use_btn1, remove_btn1])
             with gr.Column():
@@ -521,6 +538,9 @@ def create_generation_tab(title, with_image_input, session):
                         make_current2 = gr.Button(value="Make current seed")
                         make_current2.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed2], outputs=local_seed)
                 use_btn2 = gr.Button(value="Use for image-to-image generation", visible=False)
+                if GFPGAN:
+                    gfpgan_btn2 = gr.Button(value="Enhance face", visible=True)
+                    gfpgan_btn2.click(fn=gfpgan_image, inputs=local_output2, outputs=local_output2)
                 remove_btn2 = gr.Button(value="Remove forever", visible=False)
                 remove_btn2.click(fn=remove_image_forever, inputs=remove_btn2, outputs=[local_output2, use_btn2, remove_btn2])
             with gr.Column():
@@ -532,6 +552,9 @@ def create_generation_tab(title, with_image_input, session):
                         make_current3 = gr.Button(value="Make current seed")
                         make_current3.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed3], outputs=local_seed)
                 use_btn3 = gr.Button(value="Use for image-to-image generation", visible=False)
+                if GFPGAN:
+                    gfpgan_btn3 = gr.Button(value="Enhance face", visible=True)
+                    gfpgan_btn3.click(fn=gfpgan_image, inputs=local_output3, outputs=local_output3)
                 remove_btn3 = gr.Button(value="Remove forever", visible=False)
                 remove_btn3.click(fn=remove_image_forever, inputs=remove_btn3, outputs=[local_output3, use_btn3, remove_btn3])
         message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
@@ -650,7 +673,7 @@ def create_image_history_tab(outputs):
 
         def use_image_history(filename_):
             global DATABASE
-            result_ = [None, None, None, None, None, None] # seed, steps, width, height, cfg_scale, prompt            
+            result_ = [None, None, None, None, None, None, None] # seed, steps, width, height, cfg_scale, prompt            
             id_ = filename_[filename_.find('[')+1:filename_.rfind(']')]
             try:
                 cursor_ = DATABASE.cursor()
@@ -661,10 +684,10 @@ def create_image_history_tab(outputs):
                 WHERE image.id=?" , [id_])
                 row_ = cursor_.fetchone()
                 if row_:
-                    result_ = [row_[0], row_[1], row_[2], row_[3], row_[4], row_[5]]
+                    result_ = [row_[0], row_[1], row_[2], row_[3], row_[4], row_[5], row_[6]]
             except lite.Error as e:
                 print(f"Database exception trying to get image history: {e}")
-            return result_ + result_ + [row_[6]] # twice because text to image AND image to image are updated
+            return result_ + result_ + [result_[0]] # twice because text to image AND image to image are updated, and the seed for a 3rd time for the 1st output on T2I tab
 
         def do_filter(filter_mode_, filter_text_):
             page_ids_ = get_page_ids(filter_mode_, filter_text_)
@@ -781,11 +804,53 @@ def create_image_history_tab(outputs):
         ima_filter_text.submit(fn=apply_filter, inputs=[ima_filter_mode, ima_filter_text], outputs=ima_moar)
         ima_reset_filter.click(fn=reset_filter, inputs=None, outputs=ima_moar)
         
+def try_init_gfpgan():
+    global GFPGAN
+    global args
+    
+    if args.GFP_DISABLED:
+        return
+    
+    model_possibilities = [os.path.join(args.GFP_MODEL_PATH, 'GFPGANv1.3.pth'), './src/gfpgan/experiments/pretrained_models/GFPGANv1.3.pth']
+    model_path = None
+    for possibility in model_possibilities:
+        print(f"Trying GFPGAN model path: {possibility}... ", end='')
+        if os.path.isfile(possibility):
+            print("found!")
+            model_path = possibility
+            break
+        else:
+            print('x')
+    if model_path is None:
+        print('Could not find model, GFPGAN disabled\n')
+            
+    src_possibilities = [os.path.join(args.GFP_FOLDER, 'gfpgan'), './src']
+    for src_path in src_possibilities:
+        print(f"Trying GFPGAN source path: {src_path}... ", end='')
+        if os.path.isdir(src_path):
+            print('found!')
+            sys.path.append(src_path)
+            try:
+                from gfpgan import GFPGANer
+                GFPGAN = GFPGANer(model_path=model_path, upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
+                print('Using GFPGAN.\n\n *** NOTE: Any enhancements you make are NOT saved to disk, if you like the changes, right click and save the image.')
+                print('If you want to reapply the enhancements in future, browse the image history and reuse the image, which lets you enhance it from the T2I or I2I tabs.\n')
+                return
+            except ImportError as e:
+                print(f'Failed to import GFPGAN: {e}\n')
+                pass
+        else:
+            print('x')
+    print("\nCould not find GFPGAN\n")
+    
 def main():    
     global OUTDIR
     global DEBUG
     global GENERATOR
-    
+        
+    #GFPGAN check    
+    try_init_gfpgan()
+        
     # make sure the output directory exists
     if not os.path.exists(OUTDIR):
         os.makedirs(OUTDIR)
@@ -817,7 +882,7 @@ def main():
             use_buttons[5].click(fn=lambda source: gr.update(value=source), inputs=iti_output3, outputs=iti_image)
             
             # Image history tab
-            create_image_history_tab([tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_prompt, iti_seed, iti_steps, iti_width, iti_height, iti_cfg_scale, iti_prompt, iti_image])
+            create_image_history_tab([tti_seed, tti_steps, tti_width, tti_height, tti_cfg_scale, tti_prompt, tti_output1, iti_seed, iti_steps, iti_width, iti_height, iti_cfg_scale, iti_prompt, iti_image, tti_seed1])
             # Prompt History tab    
             create_prompt_history_tab(tti_prompt, iti_prompt)
        
