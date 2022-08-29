@@ -69,6 +69,21 @@ Otherwise...
     * `stable-diffusion/models/gfpgan/GFPGANv1.3.pth`, and
     * `stable-diffusion/gfpgan/` with files like `utils.py`, `train.py`, and a few folders in
 1. refresh the UI and you should have buttons to enhance some o' them faces!        
+
+**Enabling image upscaling**  
+You need to setup RealESRGAN. If it's already installed in your Stable Diffusion folder, it'll likely just work.  
+If it's installed elsewhere, then check out the `-rs` and `-rm` parameters to point to another location.  
+Otherwise...
+1. `pip install realesrgan`, but this installs a really old version of `numpy`, so...
+1. `pip install numpy==1.22.4`
+1. get some models
+    * [direct link](https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth) to 4x upscaler for real life
+    * [direct link](https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth) to 4x upscaler for anime:
+    * but you can find other models in the [official repo releases page](https://github.com/xinntao/Real-ESRGAN/releases)
+1. put the model in the Stable Diffusion folder
+    * make sure the filename starts with `RealESRGAN_`
+    * put it somewhere in the `models` or `src` folder, and SDGG should find it
+1. if you want to force it to use the CPU, pass `-rp cpu` as a commandline, or just `-rd 1` to disable it
         
 ### Features
 

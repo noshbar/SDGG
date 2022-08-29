@@ -28,6 +28,10 @@ arg_parser.add_argument('-ip', '--instant_preview', dest='INSTANT_PREVIEW', type
 arg_parser.add_argument('-gs', '--gfpgan-source', dest='GFP_FOLDER', type=str, help='where to find the "gfpgan" folder', default='.') #  https://github.com/TencentARC/GFPGAN/
 arg_parser.add_argument('-gm', '--gfpgan-model', dest='GFP_MODEL_PATH', type=str, help='where to find the "GFPGANv1.3.pth" model', default='./models/gfpgan') # https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth
 arg_parser.add_argument('-gd', '--gfpgan-disable', dest='GFP_DISABLED', type=str, help='disable GFPGAN', default=False)
+arg_parser.add_argument('-rs', '--real-esrgan-source', dest='REAL_ESRGAN_FOLDER', type=str, help='where to find the "gfpgan" folder', default=None) #
+arg_parser.add_argument('-rm', '--real-esrgan-model', dest='REAL_ESRGAN_MODEL_PATH', type=str, help='where to find the model', default=None) #
+arg_parser.add_argument('-rp', '--real-esrgan-processor', dest='REAL_ESRGAN_PROCESSOR', type=str, help='RealESRGAN processor (cpu/cuda)', default='cuda')
+arg_parser.add_argument('-rd', '--real-esrgan-disable', dest='REAL_ESRGAN_DISABLED', type=str, help='disable RealESRGAN', default=False)
 arg_parser.add_argument('-Z', '--debug', dest='DEBUG', type=str, help='Disable loading of ML stuff to debug Gradio stuff quicker', default=False)
 args = arg_parser.parse_args()
 
@@ -51,6 +55,7 @@ else:
     IMAGE_COUNT = 1
     
 GFPGAN = None    
+REAL_ESRGANS = None
 DATABASE = None
 
 # and now the hacks for instant previews during generation, 1-by-1, not at all 3 at once
@@ -147,19 +152,19 @@ def provide_preview(for_index):
     global PREVIEW_EVENTS
     global GENERATING
     si = str(for_index)
-    delete_buttons  = [gr.update(variant='secondary'), gr.update(variant='secondary'), gr.update(variant='secondary')]
-    enhance_buttons = [gr.update(variant='secondary'), gr.update(variant='secondary'), gr.update(variant='secondary')]
+    delete_buttons   = [gr.update(variant='secondary'), gr.update(variant='secondary'), gr.update(variant='secondary')]
+    enhance_controls = [gr.update(label='Post process'), gr.update(variant='secondary'), gr.update(label='Post process'), gr.update(variant='secondary'), gr.update(label='Post process'), gr.update(variant='secondary')]
     if not GENERATING: # do some nops
-        return [gr.update(interactive=False), gr.update(interactive=False), gr.update(variant='secondary')] + delete_buttons + enhance_buttons
+        return [gr.update(interactive=False), gr.update(interactive=False), gr.update(variant='secondary')] + delete_buttons + enhance_controls
     while not PREVIEW_EVENTS[for_index].isSet():
         PREVIEW_EVENTS[for_index].wait(1)
     visible = (for_index+1 == SHOW_COUNT)
     for i in range(for_index+1):
         value = "Delete forever ["+str(PREVIEW_IMAGES[i]['id'])+"]"
         delete_buttons[i] = gr.update(visible=visible, value=value)
-    if visible:
-        enhance_buttons = [gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)]
-    return [PREVIEW_IMAGES[for_index]['filename'], PREVIEW_IMAGES[for_index]['seed'], gr.update(visible=True)] + delete_buttons + enhance_buttons
+        enhance_controls[i * 2 + 0] = gr.update(visible=True)
+        enhance_controls[i * 2 + 1] = gr.update(visible=True)
+    return [PREVIEW_IMAGES[for_index]['filename'], PREVIEW_IMAGES[for_index]['seed'], gr.update(visible=True)] + delete_buttons + enhance_controls
         
 def handle_preview(image, seed):
     global OUTDIR
@@ -214,8 +219,8 @@ def generate_with_preview(init_image_filename, prompt, seed, steps, width, heigh
     thread = threading.Thread(target=generation_thread, args=(init_image_filename, prompt, seed, steps, width, height, cfg_scale,))        
     thread.start()
                 
-    # update the message label with a unique message to trigger `change`, and hide the 3 delete buttons and enhance buttons
-    buttons = [gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)]
+    # update the message label with a unique message to trigger `change`, and hide the 3 delete buttons and enhance controls
+    buttons = [gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)]
     return ["Please wait until all 3 are generated... [hack#: " + str(uuid.uuid4()) + "]"] + buttons
 # preview hack end ================================================================================================                
         
@@ -475,16 +480,40 @@ def gfpgan_image(image):
     _, _, restored_img = GFPGAN.enhance(image[:,:,::-1], has_aligned=False, only_center_face=False, paste_back=True)
     return restored_img[:,:,::-1]
                     
+def realesrgan_image(image, upscaler):
+    if image is None:
+        return None
+    result, _ = REAL_ESRGANS[upscaler].enhance(image[:,:,::-1])
+    return result[:,:,::-1]
+                    
+def post_process_image(image, process):
+    if 'face' in process:
+        return gfpgan_image(image)
+    else:
+        return realesrgan_image(image, process)
+                    
 def create_generation_tab(title, with_image_input, session):
     global PREVIEW
     global GFPGAN
+    global REAL_ESRGANS
+    
+    post_processes = []
+    if GFPGAN:
+        post_processes.append('Enhance face')
+    if not REAL_ESRGANS is None:
+        for instance in REAL_ESRGANS.keys():
+            post_processes.append(instance)
     
     with gr.TabItem(title):
         if with_image_input:
             image = gr.Image(label="Guide/initial image (keep small with dimensions that are multiples of 64)", interactive=True)
-            if GFPGAN:
-                gfpgan_source_btn = gr.Button(value="Enhance face")
-                gfpgan_source_btn.click(fn=gfpgan_image, inputs=image, outputs=image)
+            if len(post_processes):
+                with gr.Row():
+                    with gr.Column():
+                        top_post_process_choices = gr.Dropdown(label='Post-process', choices=post_processes, value=post_processes[0])
+                    with gr.Column():
+                        top_post_process_btn = gr.Button(value="Process")
+                        top_post_process_btn.click(fn=post_process_image, inputs=[image, top_post_process_choices], outputs=image)
         else:
             image = None
             
@@ -522,73 +551,61 @@ def create_generation_tab(title, with_image_input, session):
             gr.Markdown(value='(to see images *as* they are generated, you can try running this script with `-ip true`, but this *is experimental*)', show_label=False)
         else:
             gr.Markdown(value='**DO NOT TOUCH ANYTHING** until *ALL* images are done generating', show_label=False)
+        local_output         = [None, None, None]
+        local_image_seed     = [None, None, None]
+        make_current         = [None, None, None]
+        gfpgan_btn           = [None, None, None]
+        remove_btn           = [None, None, None]
+        use_btn              = [None, None, None]
+        post_process_choices = [None, None, None]
+        post_process_btn     = [None, None, None]
         with gr.Row():
-            with gr.Column():
-                local_output1 = gr.Image(label="Generated image", interactive=False)
-                with gr.Row():
-                    with gr.Column():
-                        local_seed1 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
-                    with gr.Column():
-                        make_current1 = gr.Button(value="Make current seed")
-                        make_current1.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed1], outputs=local_seed)
-                use_btn1 = gr.Button(value="Use for image-to-image generation", visible=False)
-                if GFPGAN:
-                    gfpgan_btn1 = gr.Button(value="Enhance face", visible=True)
-                    gfpgan_btn1.click(fn=gfpgan_image, inputs=local_output1, outputs=local_output1)
-                remove_btn1 = gr.Button(value="Remove forever", visible=False)
-                remove_btn1.click(fn=remove_image_forever, inputs=remove_btn1, outputs=[local_output1, use_btn1, remove_btn1])
-            with gr.Column():
-                local_output2 = gr.Image(label="Generated image", visible=SHOW_COUNT>1, interactive=False)
-                with gr.Row():
-                    with gr.Column():
-                        local_seed2 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
-                    with gr.Column():
-                        make_current2 = gr.Button(value="Make current seed")
-                        make_current2.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed2], outputs=local_seed)
-                use_btn2 = gr.Button(value="Use for image-to-image generation", visible=False)
-                if GFPGAN:
-                    gfpgan_btn2 = gr.Button(value="Enhance face", visible=True)
-                    gfpgan_btn2.click(fn=gfpgan_image, inputs=local_output2, outputs=local_output2)
-                remove_btn2 = gr.Button(value="Remove forever", visible=False)
-                remove_btn2.click(fn=remove_image_forever, inputs=remove_btn2, outputs=[local_output2, use_btn2, remove_btn2])
-            with gr.Column():
-                local_output3 = gr.Image(label="Generated image", visible=SHOW_COUNT>2, interactive=False)
-                with gr.Row():
-                    with gr.Column():
-                        local_seed3 = gr.Textbox(label="Seed", max_lines=1, interactive=False)
-                    with gr.Column():
-                        make_current3 = gr.Button(value="Make current seed")
-                        make_current3.click(fn=lambda s: gr.update(value=int(s)), inputs=[local_seed3], outputs=local_seed)
-                use_btn3 = gr.Button(value="Use for image-to-image generation", visible=False)
-                if GFPGAN:
-                    gfpgan_btn3 = gr.Button(value="Enhance face", visible=True)
-                    gfpgan_btn3.click(fn=gfpgan_image, inputs=local_output3, outputs=local_output3)
-                remove_btn3 = gr.Button(value="Remove forever", visible=False)
-                remove_btn3.click(fn=remove_image_forever, inputs=remove_btn3, outputs=[local_output3, use_btn3, remove_btn3])
+            for column in range(3):
+                with gr.Column():
+                    local_output[column] = gr.Image(label="Generated image", interactive=False)
+                    with gr.Row():
+                        with gr.Column():
+                            local_image_seed[column] = gr.Textbox(label="Seed", max_lines=1, interactive=False)
+                        with gr.Column():
+                            make_current[column] = gr.Button(value="Make current seed")
+                            make_current[column].click(fn=lambda s: gr.update(value=int(s)), inputs=[local_image_seed[column]], outputs=local_image_seed[column])
+                    use_btn[column] = gr.Button(value="Use for image-to-image generation", visible=False)
+                    if len(post_processes):
+                        with gr.Row():
+                            with gr.Column():
+                                post_process_choices[column] = gr.Dropdown(label='Post-process', choices=post_processes, value=post_processes[0])
+                            with gr.Column():
+                                post_process_btn[column] = gr.Button(value="Process")
+                                post_process_btn[column].click(fn=post_process_image, inputs=[local_output[column], post_process_choices[column]], outputs=local_output[column])
+                    remove_btn[column] = gr.Button(value="Remove forever", visible=False)
+                    remove_btn[column].click(fn=remove_image_forever, inputs=remove_btn[column], outputs=[local_output[column], use_btn[column], remove_btn[column]])
         message = gr.Textbox(label="Messages", max_lines=1, interactive=False)
+        
         if PREVIEW:
             first  = gr.Variable(value=0)
             second = gr.Variable(value=1)
             third  = gr.Variable(value=2)
-            cascading_common = [remove_btn1, remove_btn2, remove_btn3]
-            if GFPGAN:
-                cascading_common += [gfpgan_btn1, gfpgan_btn2, gfpgan_btn3]
-            message.change(fn=provide_preview, inputs=first, outputs=[local_output1, local_seed1, use_btn1] + cascading_common)
-            local_output1.change(fn=provide_preview, inputs=second, outputs=[local_output2, local_seed2, use_btn2] + cascading_common)
-            local_output2.change(fn=provide_preview, inputs=third, outputs=[local_output3, local_seed3, use_btn3] + cascading_common)
-            if GFPGAN:
-                outputs_ = [message, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3]
+            cascading_common = [remove_btn[0], remove_btn[1], remove_btn[2]]
+            post_process_outputs = []
+            if len(post_processes):
+                for i in range(3):
+                    post_process_outputs += [post_process_choices[i], post_process_btn[i]]
+            cascading_common += post_process_outputs
+            message.change(fn=provide_preview, inputs=first, outputs=[local_output[0], local_image_seed[0], use_btn[0]] + cascading_common)
+            local_output[0].change(fn=provide_preview, inputs=second, outputs=[local_output[1], local_image_seed[1], use_btn[1]] + cascading_common)
+            local_output[1].change(fn=provide_preview, inputs=third, outputs=[local_output[2], local_image_seed[2], use_btn[2]] + cascading_common)
+            if len(post_processes):
+                outputs_ = [message, remove_btn[0], remove_btn[1], remove_btn[2]] + post_process_outputs
             else:
-                outputs_ = [message, remove_btn1, remove_btn2, remove_btn3]
+                outputs_ = [message, remove_btn[0], remove_btn[1], remove_btn[2]]
         else:
-            outputs_ = [local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message]
-            outputs_ += [use_btn1, use_btn2, use_btn3, remove_btn1, remove_btn2, remove_btn3]
+            outputs_ = [local_output[0], local_output[1], local_output[2], local_image_seed[0], local_image_seed[1], local_image_seed[2], message]
+            outputs_ += [use_btn[0], use_btn[1], use_btn[2], remove_btn[0], remove_btn[1], remove_btn[2]]
         if with_image_input:
             generate_btn.click(fn=generate_i2i, inputs=[image, local_prompt, local_seed, local_steps, local_cfg_scale], outputs=outputs_)
         else:
             generate_btn.click(fn=generate_t2i, inputs=[local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale], outputs=outputs_)
-        return local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale, local_output1, local_seed1, local_output2, local_seed2, local_output3, local_seed3, image, [use_btn1, use_btn2, use_btn3]
-
+        return local_prompt, local_seed, local_steps, local_width, local_height, local_cfg_scale, local_output[0], local_image_seed[0], local_output[1], local_image_seed[1], local_output[2], local_image_seed[2], image, [use_btn[0], use_btn[1], use_btn[2]]
         
 def create_prompt_history_tab(tti_prompt, iti_prompt):    
     with gr.TabItem("Prompt history"):
@@ -821,6 +838,52 @@ def create_image_history_tab(outputs):
         ima_filter_text.submit(fn=apply_filter, inputs=[ima_filter_mode, ima_filter_text], outputs=ima_moar)
         ima_reset_filter.click(fn=reset_filter, inputs=None, outputs=ima_moar)
         
+def try_init_real_esrgan():
+    global REAL_ESRGANS
+    global args
+    
+    if args.REAL_ESRGAN_DISABLED:
+        return
+    
+    import glob
+    
+    model_possibilities = []
+    for model in glob.glob("models/**/RealESRGAN_*.pth", recursive = True):
+        model_possibilities.append(model)
+    for model in glob.glob("src/**/RealESRGAN_*.pth", recursive = True):
+        model_possibilities.append(model)
+    if not args.REAL_ESRGAN_MODEL_PATH is None:
+        for model in glob.glob(os.path.join(args.REAL_ESRGAN_MODEL_PATH, "/**/RealESRGAN_*.pth"), recursive = True):
+            model_possibilities.append(model)
+            
+    if not len(model_possibilities):
+        print("RealESRGAN models not found and will not be used.\n")
+        return
+    
+    try:
+        if not args.REAL_ESRGAN_FOLDER is None:
+            sys.path.append(os.path.abspath(args.REAL_ESRGAN_FOLDER))
+        from realesrgan import RealESRGANer
+        from basicsr.archs.rrdbnet_arch import RRDBNet
+
+        import torch
+        REAL_ESRGANS = {}
+        for model_path in model_possibilities:
+            if 'anime' in model_path:
+                net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
+            else:
+                net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+            head, tail = os.path.split(model_path)
+            instance = RealESRGANer(scale=2, model_path=model_path, model=net, pre_pad=0, half=False)
+            instance.model.name = tail
+            instance.device = torch.device(args.REAL_ESRGAN_PROCESSOR)
+            REAL_ESRGANS[tail] = instance
+        print("RealESRGAN loaded successfully\n")
+    except ImportError as e:
+        print(f'Failed to import RealESRGAN: {e}\n')
+        pass
+    
+                
 def try_init_gfpgan():
     global GFPGAN
     global args
@@ -865,6 +928,9 @@ def main():
     global OUTDIR
     global DEBUG
     global GENERATOR
+        
+    #RealESRGAN check    
+    try_init_real_esrgan()
         
     #GFPGAN check    
     try_init_gfpgan()
