@@ -479,7 +479,6 @@ def gfpgan_image(image):
     if image is None:
         return None
         
-    global GFPGAN
     global GFPGAN_MODEL
         
     from gfpgan import GFPGANer
