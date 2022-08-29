@@ -30,6 +30,7 @@ Main user options:
 * `--help` to show all options
 * `-of <category>` lets you choose the subfolder within `outputs`, grouping them by category, e.g., one for "animals", one for "fantasy", one for "taxes", whatever, to prevent things getting too unwieldly
 * `-ip true` will show images as they're ready, not wait until all 3 are done. *CAUTION*: this is a complete hack, abusing Gradio, so use with discretion
+* `-rd true` and `-gd true` will disable the upscaling and face enhancement, useful if you're getting out of memory errors
 
 ### Longstart
 
@@ -69,6 +70,7 @@ Otherwise...
     * `stable-diffusion/models/gfpgan/GFPGANv1.3.pth`, and
     * `stable-diffusion/gfpgan/` with files like `utils.py`, `train.py`, and a few folders in
 1. refresh the UI and you should have buttons to enhance some o' them faces!        
+1. if you are getting out-of-memory errors, try disabling this with `-gd true`
 
 **Enabling image upscaling**  
 You need to setup RealESRGAN. If it's already installed in your Stable Diffusion folder, it'll likely just work.  
@@ -83,13 +85,15 @@ Otherwise...
 1. put the model in the Stable Diffusion folder
     * make sure the filename starts with `RealESRGAN_`
     * put it somewhere in the `models` or `src` folder, and SDGG should find it
-1. if you want to force it to use the CPU, pass `-rp cpu` as a commandline, or just `-rd 1` to disable it
+1. if you want to force it to use the CPU, pass `-rp cpu` as a commandline (it is quite a bit slower)
+1. if you are getting out-of-memory errors, try disabling this with `-rd true`
         
 ### Features
 
 * text to image
 * image to image
 * face enhancement
+* upscaling
 * simple GUI to adjust most common generation settings
 * saves all the prompts you use to a database so you can reuse them in future (searching by keyword coming soon, maybe)
 * saves your session details so if the server restarts and you refresh your page, you'll get where you last left off
