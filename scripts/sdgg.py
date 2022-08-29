@@ -490,7 +490,27 @@ def gfpgan_image(image):
 def realesrgan_image(image, upscaler):
     if image is None:
         return None
-    result, _ = REAL_ESRGANS[upscaler].enhance(image[:,:,::-1])
+
+    global REAL_ESRGANS
+    global args
+
+    from realesrgan import RealESRGANer
+    from basicsr.archs.rrdbnet_arch import RRDBNet
+    import torch
+
+    print("\nCreating RealESRGAN instance\n")    
+    model_path = REAL_ESRGANS[upscaler] 
+    if 'anime' in model_path:
+        net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
+    else:
+        net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+    instance = RealESRGANer(scale=2, model_path=model_path, model=net, pre_pad=0, half=False)
+    instance.model.name = upscaler
+    instance.device = torch.device(args.REAL_ESRGAN_PROCESSOR)
+    if args.REAL_ESRGAN_PROCESSOR == 'cpu':
+        instance.model.to('cpu')            
+        
+    result, _ = instance.enhance(image[:,:,::-1])
     return result[:,:,::-1]
                     
 def post_process_image(image, process):
@@ -872,21 +892,12 @@ def try_init_real_esrgan():
             sys.path.append(os.path.abspath(args.REAL_ESRGAN_FOLDER))
         from realesrgan import RealESRGANer
         from basicsr.archs.rrdbnet_arch import RRDBNet
-
         import torch
+        
         REAL_ESRGANS = {}
         for model_path in model_possibilities:
-            if 'anime' in model_path:
-                net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
-            else:
-                net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
             head, tail = os.path.split(model_path)
-            instance = RealESRGANer(scale=2, model_path=model_path, model=net, pre_pad=0, half=False)
-            instance.model.name = tail
-            instance.device = torch.device(args.REAL_ESRGAN_PROCESSOR)
-            if args.REAL_ESRGAN_PROCESSOR == 'cpu':
-                instance.model.to('cpu')            
-            REAL_ESRGANS[tail] = instance
+            REAL_ESRGANS[tail] = model_path
         print("RealESRGAN loaded successfully\n")
     except ImportError as e:
         print(f'Failed to import RealESRGAN: {e}\n')

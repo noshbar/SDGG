@@ -85,7 +85,6 @@ Otherwise...
     * make sure the filename starts with `RealESRGAN_`
     * put it somewhere in the `models` or `src` folder, and SDGG should find it
 1. if you want to force it to use the CPU, pass `-rp cpu` as a commandline (it is quite a bit slower)
-1. if you are getting out-of-memory errors, try disabling this with `-rd true`
         
 ### Features
 
