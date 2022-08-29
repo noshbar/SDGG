@@ -877,6 +877,8 @@ def try_init_real_esrgan():
             instance = RealESRGANer(scale=2, model_path=model_path, model=net, pre_pad=0, half=False)
             instance.model.name = tail
             instance.device = torch.device(args.REAL_ESRGAN_PROCESSOR)
+            if args.REAL_ESRGAN_PROCESSOR == 'cpu':
+                instance.model.to('cpu')            
             REAL_ESRGANS[tail] = instance
         print("RealESRGAN loaded successfully\n")
     except ImportError as e:
