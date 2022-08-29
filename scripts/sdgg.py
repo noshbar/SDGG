@@ -840,6 +840,7 @@ def try_init_gfpgan():
             print('x')
     if model_path is None:
         print('Could not find model, GFPGAN disabled\n')
+        return
             
     src_possibilities = [os.path.join(args.GFP_FOLDER, 'gfpgan'), './src']
     for src_path in src_possibilities:
