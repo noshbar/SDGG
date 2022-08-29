@@ -70,7 +70,6 @@ Otherwise...
     * `stable-diffusion/models/gfpgan/GFPGANv1.3.pth`, and
     * `stable-diffusion/gfpgan/` with files like `utils.py`, `train.py`, and a few folders in
 1. refresh the UI and you should have buttons to enhance some o' them faces!        
-1. if you are getting out-of-memory errors, try disabling this with `-gd true`
 
 **Enabling image upscaling**  
 You need to setup RealESRGAN. If it's already installed in your Stable Diffusion folder, it'll likely just work.  

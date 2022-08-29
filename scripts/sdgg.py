@@ -54,9 +54,10 @@ else:
     ITERATIONS = IMAGE_COUNT
     IMAGE_COUNT = 1
     
-GFPGAN = None    
-REAL_ESRGANS = None
-DATABASE = None
+GFPGAN_MODEL    = None # used to determine whether its available, so to instance things on demand
+REAL_ESRGANS    = None
+CAN_REAL_ESRGAN = None # used to determine whether its available, so to instance things on demand
+DATABASE        = None
 
 # and now the hacks for instant previews during generation, 1-by-1, not at all 3 at once
 PREVIEW        = args.INSTANT_PREVIEW   
@@ -477,7 +478,14 @@ def generate_i2i(image_numpy, prompt, seed, steps, cfg_scale):
 def gfpgan_image(image):
     if image is None:
         return None
-    _, _, restored_img = GFPGAN.enhance(image[:,:,::-1], has_aligned=False, only_center_face=False, paste_back=True)
+        
+    global GFPGAN
+    global GFPGAN_MODEL
+        
+    from gfpgan import GFPGANer
+    print("\nCreating GFPGAN instance\n")
+    fixer = GFPGANer(model_path=GFPGAN_MODEL, upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
+    _, _, restored_img = fixer.enhance(image[:,:,::-1], has_aligned=False, only_center_face=False, paste_back=True)
     return restored_img[:,:,::-1]
                     
 def realesrgan_image(image, upscaler):
@@ -494,11 +502,11 @@ def post_process_image(image, process):
                     
 def create_generation_tab(title, with_image_input, session):
     global PREVIEW
-    global GFPGAN
+    global GFPGAN_MODEL
     global REAL_ESRGANS
     
     post_processes = []
-    if GFPGAN:
+    if GFPGAN_MODEL:
         post_processes.append('Enhance face')
     if not REAL_ESRGANS is None:
         for instance in REAL_ESRGANS.keys():
@@ -887,7 +895,7 @@ def try_init_real_esrgan():
     
                 
 def try_init_gfpgan():
-    global GFPGAN
+    global GFPGAN_MODEL
     global args
     
     if args.GFP_DISABLED:
@@ -915,7 +923,7 @@ def try_init_gfpgan():
             sys.path.append(src_path)
             try:
                 from gfpgan import GFPGANer
-                GFPGAN = GFPGANer(model_path=model_path, upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
+                GFPGAN_MODEL = model_path
                 print('Using GFPGAN.\n\n *** NOTE: Any face enhancements you make are NOT saved to disk, if you like the changes, right click and save the image.')
                 print('If you want to reapply the enhancements in future, browse the image history and reuse the image, which lets you enhance it from the T2I or I2I tabs.\n')
                 return
