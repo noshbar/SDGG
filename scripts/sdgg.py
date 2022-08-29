@@ -570,10 +570,16 @@ def create_generation_tab(title, with_image_input, session):
             first  = gr.Variable(value=0)
             second = gr.Variable(value=1)
             third  = gr.Variable(value=2)
-            message.change(fn=provide_preview, inputs=first, outputs=[local_output1, local_seed1, use_btn1, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3])
-            local_output1.change(fn=provide_preview, inputs=second, outputs=[local_output2, local_seed2, use_btn2, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3])
-            local_output2.change(fn=provide_preview, inputs=third, outputs=[local_output3, local_seed3, use_btn3, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3])
-            outputs_ = [message, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3]
+            cascading_common = [remove_btn1, remove_btn2, remove_btn3]
+            if GFPGAN:
+                cascading_common += [gfpgan_btn1, gfpgan_btn2, gfpgan_btn3]
+            message.change(fn=provide_preview, inputs=first, outputs=[local_output1, local_seed1, use_btn1] + cascading_common)
+            local_output1.change(fn=provide_preview, inputs=second, outputs=[local_output2, local_seed2, use_btn2] + cascading_common)
+            local_output2.change(fn=provide_preview, inputs=third, outputs=[local_output3, local_seed3, use_btn3] + cascading_common)
+            if GFPGAN:
+                outputs_ = [message, remove_btn1, remove_btn2, remove_btn3, gfpgan_btn1, gfpgan_btn2, gfpgan_btn3]
+            else:
+                outputs_ = [message, remove_btn1, remove_btn2, remove_btn3]
         else:
             outputs_ = [local_output1, local_output2, local_output3, local_seed1, local_seed2, local_seed3, message]
             outputs_ += [use_btn1, use_btn2, use_btn3, remove_btn1, remove_btn2, remove_btn3]
