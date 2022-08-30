@@ -13,9 +13,9 @@ This is a web-based user interface for generating images using the Stable Diffus
 ### Quickstart
 
 Setup:
-1. Clone [the official Stable Diffusion repo](https://github.com/CompVis/stable-diffusion) and create and activate the environment as instructed in their docs
+1. Clone/download [the official Stable Diffusion repo](https://github.com/CompVis/stable-diffusion) and create and activate the environment as instructed in their docs
     * developed against commit 69ae4b35e0a0f6ee1af8bb9a5d0016ccb27e36dc, in case things break in the future
-2. Clone this repo and copy the files to the same folder you just cloned the above to
+2. Clone/download this repo and copy the files to the same folder you just cloned the above to
 3. Run `pip install gradio`
     * developed against version 3.1.7
 4. Run `pip install -e git+https://github.com/lstein/k-diffusion.git@master#egg=k-diffusion`
@@ -39,18 +39,20 @@ This is how I got up and running:
     * requires creating a HuggingFace account
     * requires checking their agreement checkbox
 1. Install Anaconda
-1. Clone [the official Stable Diffusion repo](https://github.com/CompVis/stable-diffusion)
+1. Clone/download [the official Stable Diffusion repo](https://github.com/CompVis/stable-diffusion)
 1. `cd stable-diffusion`
 1. Copy the weights to `models/ldm/stable-diffusion-v1/model.ckpt` (creating the folder if necessary)
 1. `conda env create -f environment.yaml`
 1. `conda activate ldm`
 1. Test if it's all working with `python scripts/txt2img.py --prompt "a photograph of an astronaut riding a horse" --plms` (it will download additional stuff)
-1. Clone this repo
+1. Clone/download this repo
 1. Copy all the files to the `stable-diffusion` folder
 1. `pip install gradio`
 1. `pip install -e git+https://github.com/lstein/k-diffusion.git@master#egg=k-diffusion`
 1. Run `python scripts\sdgg.py`
 1. Wait for the URL to browse to, and start using it!
+
+### Addons
 
 **Enabling face enhancement**  
 You need to setup GFPGAN. If it's already installed in your Stable Diffusion folder, it'll likely just work.  
@@ -63,7 +65,7 @@ Otherwise...
     * move it to `./models/gfpgan/`
         * (however, other repos use `./src/gfpgan/experiments/pretrained_models/GFPGANv1.3.pth`, this will work, too)
 1. get the source
-    * clone the repo https://github.com/TencentARC/GFPGAN
+    * clone/download the repo https://github.com/TencentARC/GFPGAN
     * copy the `gfpgan` from within it to the root of the stable diffusion folder
         * (however, other repos use `./src`, this will work, too) 
 1. so in the end, you should have something like:
@@ -75,6 +77,7 @@ Otherwise...
 You need to setup RealESRGAN. If it's already installed in your Stable Diffusion folder, it'll likely just work.  
 If it's installed elsewhere, then check out the `-rs` and `-rm` parameters to point to another location.  
 Otherwise...
+1. `pip install basicsr`
 1. `pip install realesrgan`, but this installs a really old version of `numpy`, so...
 1. `pip install numpy==1.22.4`
 1. get some models
